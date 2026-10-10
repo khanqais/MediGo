@@ -1,10 +1,10 @@
 "use client";
 
 import { useCartStore } from "@/store/cartStore";
-import { allMedicines } from "@/data/medicines";
 import { Medicine } from "@/types/medicine";
 import { 
   AlertCircle, 
+  AlertTriangle,
   ChevronRight, 
   Minus, 
   Plus, 
@@ -23,6 +23,7 @@ import {
   Package
 } from "lucide-react";
 import Link from "next/link";
+import { siteConfig } from "@/config/site";
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import * as Tabs from "@radix-ui/react-tabs";
@@ -37,36 +38,75 @@ export default function MedicineDetailPage({ params }: { params: { slug: string 
   const [pincodeStatus, setPincodeStatus] = useState<string | null>(null);
   const [isCheckingPincode, setIsCheckingPincode] = useState(false);
   const [copiedCoupon, setCopiedCoupon] = useState(false);
+  
+  const [medicine, setMedicine] = useState<Medicine | null>(null);
+  const [similarMedicines, setSimilarMedicines] = useState<Medicine[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const addItem = useCartStore((state) => state.addItem);
 
-  const medicine = useMemo(() => {
-    return allMedicines.find((m) => m.slug === params.slug) || allMedicines[0];
-  }, [params.slug]);
+  useEffect(() => {
+    async function fetchMedicine() {
+      try {
+        const res = await fetch(`/api/medicines/${params.slug}`);
+        if (!res.ok) {
+          if (res.status === 404) {
+            toast.error("Medicine not found");
+            router.push("/medicines");
+            return;
+          }
+          throw new Error("Failed to fetch medicine");
+        }
+        const json = await res.json();
+        const medData = json.data;
+        setMedicine(medData);
+        
+        // Substitutes from backend
+        if (json.substitutes && json.substitutes.length > 0) {
+          setSimilarMedicines(json.substitutes);
+        } else if (medData.category) {
+          // Fallback to similar category medicines if no exact substitutes
+          const simRes = await fetch(`/api/medicines?category=${medData.category}&limit=6`);
+          if (simRes.ok) {
+            const simData = await simRes.json();
+            setSimilarMedicines(simData.data.filter((m: Medicine) => m.id !== medData.id).slice(0, 5));
+          }
+        }
+      } catch (error) {
+        console.error(error);
+        toast.error("Failed to load medicine details");
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchMedicine();
+  }, [params.slug, router]);
 
   // Gallery images directly from medicine data
   const galleryImages = useMemo(() => {
+    if (!medicine) return [];
     if (medicine.images && medicine.images.length > 0) {
       return medicine.images;
     }
     return [medicine.imageUrl || "/products/catalogue-1.jpg"];
   }, [medicine]);
 
-  const [activeImage, setActiveImage] = useState<string>(
-    medicine.images?.[0] || medicine.imageUrl || "/products/catalogue-1.jpg"
-  );
+  const [activeImage, setActiveImage] = useState<string>("");
 
   // Reset active image when medicine slug changes
   useEffect(() => {
-    setActiveImage(medicine.images?.[0] || medicine.imageUrl || "/products/catalogue-1.jpg");
-  }, [medicine.slug, medicine.images, medicine.imageUrl]);
-
-  // Similar medicines in same category or similar price
-  const similarMedicines = useMemo(() => {
-    return allMedicines
-      .filter((m) => m.category === medicine.category && m.id !== medicine.id)
-      .slice(0, 5);
+    if (medicine) {
+      setActiveImage(medicine.images?.[0] || medicine.imageUrl || "/products/catalogue-1.jpg");
+    }
   }, [medicine]);
+
+  if (loading || !medicine) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center bg-slate-50">
+        <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   const savings = Math.max(0, medicine.mrp - medicine.price);
 
@@ -129,9 +169,21 @@ export default function MedicineDetailPage({ params }: { params: { slug: string 
               <div className="aspect-square bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-center p-6 relative overflow-hidden group shadow-inner">
                 {/* Badges */}
                 <div className="absolute top-4 left-4 right-4 z-10 flex items-center justify-between pointer-events-none">
-                  {medicine.prescriptionRequired && (
+                  {medicine.drugSchedule === "X" ? (
+                    <span className="bg-red-600 text-white text-xs font-black uppercase px-2.5 py-1 rounded-full shadow-sm">
+                      Schedule X (Prohibited Online)
+                    </span>
+                  ) : medicine.drugSchedule === "H1" ? (
+                    <span className="bg-rose-600 text-white text-xs font-black uppercase px-2.5 py-1 rounded-full shadow-sm">
+                      Schedule H1 (Rx)
+                    </span>
+                  ) : medicine.prescriptionRequired || medicine.drugSchedule === "H" ? (
                     <span className="bg-amber-600 text-white text-xs font-black uppercase px-2.5 py-1 rounded-full shadow-sm">
-                      Rx Required
+                      Schedule H (Rx Required)
+                    </span>
+                  ) : (
+                    <span className="bg-emerald-600 text-white text-xs font-black uppercase px-2.5 py-1 rounded-full shadow-sm">
+                      OTC Medicine
                     </span>
                   )}
                   {medicine.discountPercentage > 0 && (
@@ -217,10 +269,19 @@ export default function MedicineDetailPage({ params }: { params: { slug: string 
                 </Link>
               </div>
 
-              {/* Ratings */}
+              {/* Ratings / Genuine Formulation Badge */}
               <div className="flex items-center gap-3 mb-6">
-                <RatingStars rating={medicine.rating} reviewsCount={medicine.reviewsCount} size={16} />
-                <span className="text-xs text-slate-400">• Verified Buyer Feedback</span>
+                {medicine.rating && medicine.reviewsCount ? (
+                  <>
+                    <RatingStars rating={medicine.rating} reviewsCount={medicine.reviewsCount} size={16} />
+                    <span className="text-xs text-slate-400">• Verified Buyer Feedback</span>
+                  </>
+                ) : (
+                  <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 bg-slate-100/70 px-3 py-1.5 rounded-lg border border-slate-200/60">
+                    <ShieldCheck size={16} className="text-primary" />
+                    <span>WHO-GMP Certified Genuine Formulation • Laboratory Batch Tested</span>
+                  </div>
+                )}
               </div>
 
               {/* Pricing Box */}
@@ -271,25 +332,46 @@ export default function MedicineDetailPage({ params }: { params: { slug: string 
                 </button>
               </div>
 
-              {/* Prescription warning if needed */}
-              {medicine.prescriptionRequired && (
+              {/* Schedule and Prescription Warnings */}
+              {medicine.drugSchedule === "X" ? (
+                <div className="flex items-start gap-3 bg-red-50 border border-red-200 text-red-900 p-4 rounded-xl mb-6 text-xs">
+                  <AlertCircle size={20} className="shrink-0 text-red-600 mt-0.5" />
+                  <div>
+                    <strong className="font-bold text-red-950 block text-sm mb-0.5">Schedule X Narcotic / Habit-Forming Substance</strong>
+                    <p className="text-red-800">
+                      As per the Drugs and Cosmetics Rules, 1945, Schedule X drugs are strictly prohibited from being ordered or dispensed online. Please visit a licensed offline retail pharmacy with a duplicate prescription from a Registered Medical Practitioner.
+                    </p>
+                  </div>
+                </div>
+              ) : medicine.drugSchedule === "H1" ? (
+                <div className="flex items-start gap-3 bg-rose-50 border border-rose-200 text-rose-900 p-4 rounded-xl mb-6 text-xs">
+                  <AlertCircle size={20} className="shrink-0 text-rose-600 mt-0.5" />
+                  <div>
+                    <strong className="font-bold text-rose-950 block text-sm mb-0.5">Schedule H1 Prescription Drug (Strict Rx Record)</strong>
+                    <p className="text-rose-800">
+                      This medicine is a monitored Schedule H1 drug requiring a doctor prescription. Our registered pharmacist will verify the prescription and maintain statutory dispensing records.
+                    </p>
+                  </div>
+                </div>
+              ) : (medicine.prescriptionRequired || medicine.drugSchedule === "H") ? (
                 <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-900 p-4 rounded-xl mb-6 text-xs">
                   <AlertCircle size={20} className="shrink-0 text-amber-600 mt-0.5" />
                   <div>
                     <strong className="font-bold text-amber-950 block text-sm mb-0.5">Schedule H Prescription Required (Rx)</strong>
                     <p className="text-amber-800">
-                      This medicine requires a valid doctor prescription. You can upload it during checkout or directly via our Prescription portal.
+                      This medicine requires a valid doctor prescription. You can attach it during checkout or upload it to your Prescription repository. Orders are dispatched after pharmacist approval.
                     </p>
                   </div>
                 </div>
-              )}
+              ) : null}
 
               {/* Quantity & CTA Buttons */}
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-6">
                 <div className="flex items-center border border-slate-300 rounded-xl bg-white h-12 w-fit shadow-xs">
                   <button 
                     onClick={() => setQty(Math.max(1, qty - 1))}
-                    className="px-3.5 h-full text-slate-600 hover:text-primary hover:bg-slate-50 transition rounded-l-xl"
+                    disabled={medicine.drugSchedule === "X"}
+                    className="px-3.5 h-full text-slate-600 hover:text-primary hover:bg-slate-50 transition rounded-l-xl disabled:opacity-40"
                     aria-label="Decrease quantity"
                   >
                     <Minus size={16} />
@@ -297,28 +379,37 @@ export default function MedicineDetailPage({ params }: { params: { slug: string 
                   <span className="w-10 text-center font-bold text-slate-900 text-sm">{qty}</span>
                   <button 
                     onClick={() => setQty(qty + 1)}
-                    className="px-3.5 h-full text-slate-600 hover:text-primary hover:bg-slate-50 transition rounded-r-xl"
+                    disabled={medicine.drugSchedule === "X"}
+                    className="px-3.5 h-full text-slate-600 hover:text-primary hover:bg-slate-50 transition rounded-r-xl disabled:opacity-40"
                     aria-label="Increase quantity"
                   >
                     <Plus size={16} />
                   </button>
                 </div>
 
-                <button 
-                  onClick={handleAddToCart}
-                  className="flex-1 h-12 bg-primary text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-primary-dark transition shadow-md hover:shadow-lg active:scale-[0.98] text-sm"
-                >
-                  <ShoppingCart size={18} />
-                  Add to Cart • ₹{medicine.price * qty}
-                </button>
+                {medicine.drugSchedule === "X" ? (
+                  <div className="flex-1 h-12 bg-slate-100 text-slate-400 border border-slate-200 rounded-xl font-bold flex items-center justify-center text-sm cursor-not-allowed">
+                    Prohibited from Online Sale (Offline Retail Only)
+                  </div>
+                ) : (
+                  <>
+                    <button 
+                      onClick={handleAddToCart}
+                      className="flex-1 h-12 bg-primary text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-primary-dark transition shadow-md hover:shadow-lg active:scale-[0.98] text-sm"
+                    >
+                      <ShoppingCart size={18} />
+                      Add to Cart • ₹{medicine.price * qty}
+                    </button>
 
-                <button 
-                  onClick={handleBuyNow}
-                  className="h-12 px-6 bg-accent hover:bg-orange-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition shadow-md hover:shadow-lg active:scale-[0.98] text-sm"
-                >
-                  <Zap size={18} />
-                  Buy Now
-                </button>
+                    <button 
+                      onClick={handleBuyNow}
+                      className="h-12 px-6 bg-accent hover:bg-orange-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition shadow-md hover:shadow-lg active:scale-[0.98] text-sm"
+                    >
+                      <Zap size={18} />
+                      Buy Now
+                    </button>
+                  </>
+                )}
               </div>
 
               {/* Pincode delivery checker */}
@@ -355,6 +446,15 @@ export default function MedicineDetailPage({ params }: { params: { slug: string 
                 )}
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Statutory Medical Disclaimer Banner */}
+        <div className="bg-amber-50/90 border border-amber-200 rounded-2xl p-4 sm:p-5 mb-8 flex items-start gap-3.5 text-xs sm:text-sm text-amber-900 leading-relaxed shadow-2xs">
+          <AlertTriangle className="text-amber-600 shrink-0 mt-0.5" size={20} />
+          <div>
+            <strong className="font-bold text-amber-950 block mb-0.5">Statutory Medical Disclaimer</strong>
+            <p className="text-amber-900/90">{siteConfig.medicalDisclaimer}</p>
           </div>
         </div>
 
@@ -462,7 +562,7 @@ export default function MedicineDetailPage({ params }: { params: { slug: string 
         {/* Similar Medicines & Generic Alternatives */}
         {similarMedicines.length > 0 && (
           <div className="mb-12">
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center justify-between mb-2">
               <div>
                 <h2 className="text-xl sm:text-2xl font-black text-slate-900">Similar Medicines & Substitutes</h2>
                 <p className="text-xs sm:text-sm text-slate-500">Other recommended generic formulations in {medicine.category.replace("-", " ")}</p>
@@ -474,11 +574,29 @@ export default function MedicineDetailPage({ params }: { params: { slug: string 
                 View all <ChevronRight size={16} />
               </Link>
             </div>
+            
+            {(medicine.drugSchedule === "H" || medicine.drugSchedule === "H1" || medicine.prescriptionRequired) && (
+              <div className="mb-4 p-3 bg-amber-50 text-amber-800 text-xs sm:text-sm rounded-xl border border-amber-200">
+                <strong className="font-bold">Medical Disclaimer:</strong> This is a prescription medicine. Please consult your doctor or pharmacist before switching to a substitute, even if the composition is the same.
+              </div>
+            )}
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-              {similarMedicines.map((item) => (
-                <MedicineCard key={item.id} medicine={item} />
-              ))}
+              {similarMedicines.map((item) => {
+                const savings = medicine.price - item.price;
+                const savingsPercent = Math.round((savings / medicine.price) * 100);
+                const isSubstitute = item.composition === medicine.composition;
+                return (
+                  <div key={item.id} className="relative">
+                    {isSubstitute && savings > 0 && (
+                      <div className="absolute -top-2 -right-2 z-10 bg-green-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-sm">
+                        Save {savingsPercent}% (₹{savings})
+                      </div>
+                    )}
+                    <MedicineCard medicine={item} />
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

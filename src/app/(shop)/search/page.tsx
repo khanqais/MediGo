@@ -1,11 +1,11 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { useState, useMemo, Suspense } from "react";
+import { useState, useMemo, Suspense, useEffect } from "react";
 import Link from "next/link";
-import { allMedicines } from "@/data/medicines";
-import { filterMedicines } from "@/utils/filterMedicines";
 import MedicineCard from "@/components/medicine/MedicineCard";
+import { Medicine } from "@/types/medicine";
+import { toast } from "sonner";
 import { 
   Search, 
   X, 
@@ -23,9 +23,14 @@ function SearchContent() {
   
   const initialQuery = searchParams.get("q") || searchParams.get("query") || "";
   const [searchTerm, setSearchTerm] = useState(initialQuery);
+  const [debouncedSearch, setDebouncedSearch] = useState(initialQuery);
+  
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [rxFilter, setRxFilter] = useState<"all" | "otc" | "rx">("all");
   const [sortBy, setSortBy] = useState<"relevance" | "price-asc" | "price-desc" | "discount">("relevance");
+
+  const [medicines, setMedicines] = useState<Medicine[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const categories = [
     { id: "all", label: "All Categories" },
@@ -48,14 +53,59 @@ function SearchContent() {
     "Cough Syrup"
   ];
 
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    async function fetchSearchMedicines() {
+      setLoading(true);
+      try {
+        let url = `/api/medicines?limit=100`;
+        if (debouncedSearch.trim()) {
+          url = `/api/search?q=${encodeURIComponent(debouncedSearch.trim())}&limit=100`;
+        }
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Failed to fetch");
+        const data = await res.json();
+        setMedicines(data.data || []);
+      } catch (error) {
+        console.error(error);
+        toast.error("Failed to load search results");
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchSearchMedicines();
+  }, [debouncedSearch]);
+
   const searchResults = useMemo(() => {
-    return filterMedicines({
-      query: searchTerm,
-      category: selectedCategory,
-      rxFilter,
-      sortBy
+    let results = medicines;
+
+    if (selectedCategory !== "all") {
+      results = results.filter(m => m.category === selectedCategory);
+    }
+
+    if (rxFilter === "rx") {
+      results = results.filter(m => m.prescriptionRequired);
+    } else if (rxFilter === "otc") {
+      results = results.filter(m => !m.prescriptionRequired);
+    }
+
+    results = [...results].sort((a, b) => {
+      switch (sortBy) {
+        case "price-asc": return a.price - b.price;
+        case "price-desc": return b.price - a.price;
+        case "discount": return b.discountPercentage - a.discountPercentage;
+        default: return 0;
+      }
     });
-  }, [searchTerm, selectedCategory, rxFilter, sortBy]);
+
+    return results;
+  }, [medicines, selectedCategory, rxFilter, sortBy]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -137,7 +187,7 @@ function SearchContent() {
               </div>
             </div>
             <div className="shrink-0 bg-white/20 px-3 py-1.5 rounded-xl text-xs font-bold border border-white/30 whitespace-nowrap">
-              {searchResults.length} Generics Available
+              {loading ? "-" : searchResults.length} Generics Available
             </div>
           </div>
         )}
@@ -204,13 +254,17 @@ function SearchContent() {
         {/* Results Count */}
         <div className="flex items-center justify-between mb-4 px-1">
           <p className="text-xs sm:text-sm text-slate-500 font-medium">
-            Showing <strong className="text-slate-900">{searchResults.length}</strong> medicines
+            Showing <strong className="text-slate-900">{loading ? "-" : searchResults.length}</strong> medicines
             {searchTerm && <span> for &ldquo;<strong>{searchTerm}</strong>&rdquo;</span>}
           </p>
         </div>
 
         {/* Results Grid or Empty State */}
-        {searchResults.length === 0 ? (
+        {loading ? (
+          <div className="py-20 flex justify-center">
+            <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+          </div>
+        ) : searchResults.length === 0 ? (
           <div className="bg-white rounded-3xl p-10 sm:p-16 text-center border border-slate-200 max-w-xl mx-auto shadow-xs">
             <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
               🔎

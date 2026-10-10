@@ -1,7 +1,7 @@
 import { Star } from "lucide-react";
 
 interface RatingStarsProps {
-  rating: number;
+  rating?: number | null;
   reviewsCount?: number;
   size?: number;
   showText?: boolean;
@@ -13,6 +13,15 @@ export default function RatingStars({
   size = 14,
   showText = true,
 }: RatingStarsProps) {
+  if (!rating || rating <= 0 || !reviewsCount) {
+    if (!showText) return null;
+    return (
+      <span className="text-xs text-slate-400 font-medium">
+        Newly listed
+      </span>
+    );
+  }
+
   return (
     <div className="flex items-center gap-1.5">
       <div className="flex items-center gap-0.5">

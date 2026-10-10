@@ -1,135 +1,344 @@
 "use client";
 
 import { useCartStore } from "@/store/cartStore";
-import { useOrderStore } from "@/store/orderStore";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { 
-  CheckCircle2, 
-  MapPin, 
-  CreditCard, 
-  Banknote, 
-  Plus, 
-  ArrowLeft, 
-  ArrowRight, 
-  ShieldCheck, 
-  Upload, 
-  FileText, 
-  Lock,
-  Truck,
-  Check
+  CheckCircle2, MapPin, Plus, 
+  ArrowRight, Upload, Lock, Check,
+  FileText, AlertTriangle, Eye, RefreshCw
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
+import { createClient } from "@/lib/supabase/client";
+
+interface UserPrescription {
+  id: string;
+  file_path: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  created_at: string;
+  url?: string | null;
+  rejection_reason?: string | null;
+}
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { items, subtotal, totalSavings, deliveryFee, total, appliedCoupon, clearCart } = useCartStore();
-  const addOrder = useOrderStore((state) => state.addOrder);
+  const { items, clearCart, appliedCoupon } = useCartStore();
+  const supabase = createClient();
   
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [paymentMode, setPaymentMode] = useState<"Online" | "COD">("Online");
   const [selectedAddressIndex, setSelectedAddressIndex] = useState(0);
-  const [rxUploaded, setRxUploaded] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isLoadingAddresses, setIsLoadingAddresses] = useState(true);
+  const [isValidating, setIsValidating] = useState(false);
 
-  const [addresses, setAddresses] = useState([
-    {
-      id: "addr-1",
-      name: "Ayaz Khan",
-      type: "Home",
-      phone: "+91 9876543210",
-      line1: "Flat 402, Sunshine Heights, Link Road",
-      locality: "Andheri West",
-      city: "Mumbai",
-      state: "Maharashtra",
-      pincode: "400053"
-    },
-    {
-      id: "addr-2",
-      name: "Ayaz Khan",
-      type: "Office",
-      phone: "+91 9876543210",
-      line1: "Floor 6, Tech Innovation Centre, BKC",
-      locality: "Bandra East",
-      city: "Mumbai",
-      state: "Maharashtra",
-      pincode: "400051"
-    }
-  ]);
-
+  // Address State
+  const [addresses, setAddresses] = useState<any[]>([]);
   const [showAddressForm, setShowAddressForm] = useState(false);
   const [newAddr, setNewAddr] = useState({
-    name: "",
-    phone: "",
-    line1: "",
-    locality: "",
-    city: "Mumbai",
-    state: "Maharashtra",
-    pincode: "",
-    type: "Home"
+    name: "", phone: "", line1: "", locality: "",
+    city: "Mumbai", state: "Maharashtra", pincode: "", type: "Home"
   });
 
-  const checkoutSubtotal = subtotal();
-  const checkoutSavings = totalSavings();
-  const checkoutDeliveryFee = deliveryFee();
-  const checkoutTotal = total();
-  const hasPrescriptionItems = items.some((item) => item.medicine.prescriptionRequired);
+  // Prescription State
+  const [prescriptions, setPrescriptions] = useState<UserPrescription[]>([]);
+  const [selectedPrescriptionId, setSelectedPrescriptionId] = useState<string | null>(null);
+  const [isLoadingPrescriptions, setIsLoadingPrescriptions] = useState(false);
+  const [isUploadingRx, setIsUploadingRx] = useState(false);
 
-  const handleAddNewAddress = (e: React.FormEvent) => {
+  // Order Validation Summary
+  const [validationSummary, setValidationSummary] = useState<any>(null);
+
+  const hasPrescriptionItems = items.some(
+    (item) => item.medicine.prescriptionRequired || item.medicine.drugSchedule === "H" || item.medicine.drugSchedule === "H1"
+  );
+
+  const fetchUserPrescriptions = useCallback(async () => {
+    try {
+      setIsLoadingPrescriptions(true);
+      const res = await fetch("/api/prescriptions");
+      const json = await res.json();
+      if (res.ok && json.success) {
+        const list: UserPrescription[] = json.data || [];
+        setPrescriptions(list);
+        if (list.length > 0) {
+          const approved = list.find(p => p.status === "APPROVED");
+          const pending = list.find(p => p.status === "PENDING");
+          if (approved) setSelectedPrescriptionId(approved.id);
+          else if (pending) setSelectedPrescriptionId(pending.id);
+          else setSelectedPrescriptionId(list[0].id);
+        }
+      }
+    } catch {
+      toast.error("Failed to load your existing prescriptions");
+    } finally {
+      setIsLoadingPrescriptions(false);
+    }
+  }, []);
+
+  // Load addresses on mount
+  useEffect(() => {
+    async function fetchAddresses() {
+      const supabaseClient = createClient();
+      const { data: { user } } = await supabaseClient.auth.getUser();
+      if (user) {
+        const { data } = await supabaseClient.from('addresses').select('*').eq('user_id', user.id);
+        if (data && data.length > 0) {
+          setAddresses(data);
+        }
+      }
+      setIsLoadingAddresses(false);
+    }
+    fetchAddresses();
+  }, []);
+
+  // Load prescriptions when on step 2 if Rx items exist
+  useEffect(() => {
+    if (step === 2 && hasPrescriptionItems) {
+      fetchUserPrescriptions();
+    }
+  }, [step, hasPrescriptionItems, fetchUserPrescriptions]);
+
+  const handleInlineRxUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const validTypes = ["image/jpeg", "image/png", "application/pdf"];
+    if (!validTypes.includes(file.type)) {
+      toast.error("Invalid file format. Please upload JPG, PNG, or PDF.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File exceeds 5MB size limit.");
+      return;
+    }
+
+    try {
+      setIsUploadingRx(true);
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/prescriptions", {
+        method: "POST",
+        body: formData,
+      });
+
+      const json = await res.json();
+      if (res.ok && json.success) {
+        toast.success("Prescription uploaded successfully!");
+        const newRx: UserPrescription = json.data;
+        setPrescriptions(prev => [newRx, ...prev]);
+        setSelectedPrescriptionId(newRx.id);
+      } else {
+        toast.error(json.error || "Failed to upload prescription");
+      }
+    } catch {
+      toast.error("Network error during file upload");
+    } finally {
+      setIsUploadingRx(false);
+    }
+  };
+
+  const handleAddNewAddress = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newAddr.name || !newAddr.phone || !newAddr.line1 || !newAddr.pincode) {
       toast.error("Please fill in all required address fields");
       return;
     }
-    const created = {
-      id: `addr-${Date.now()}`,
-      ...newAddr
-    };
-    setAddresses([...addresses, created]);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data, error } = await supabase.from('addresses').insert({
+      user_id: user.id,
+      full_name: newAddr.name,
+      phone: newAddr.phone,
+      address_line_1: newAddr.line1 + ", " + newAddr.locality,
+      city: newAddr.city,
+      state: newAddr.state,
+      postal_code: newAddr.pincode,
+      is_default: addresses.length === 0
+    }).select().single();
+
+    if (error) {
+      toast.error("Failed to save address");
+      return;
+    }
+
+    setAddresses([...addresses, data]);
     setSelectedAddressIndex(addresses.length);
     setShowAddressForm(false);
     toast.success("New delivery address added!");
   };
 
-  const handlePlaceOrder = () => {
-    if (hasPrescriptionItems && !rxUploaded) {
-      toast.error("Please attach a prescription for Schedule H medicines or confirm teleconsultation");
-      setStep(2);
+  const selectedRx = prescriptions.find(p => p.id === selectedPrescriptionId);
+
+  const handleValidateOrder = async () => {
+    if (hasPrescriptionItems) {
+      if (!selectedPrescriptionId) {
+        toast.error("Please select or upload a prescription for Schedule H medicines");
+        return;
+      }
+      if (selectedRx?.status === "REJECTED") {
+        toast.error("The selected prescription was rejected. Please select an approved prescription or upload a fresh one.");
+        return;
+      }
+    }
+
+    if (!addresses[selectedAddressIndex]) {
+      toast.error("Please select a delivery address");
       return;
     }
 
-    setIsProcessing(true);
-    setTimeout(() => {
-      setIsProcessing(false);
-      addOrder({
-        id: `OD${Math.floor(Math.random() * 1000000000)}`,
-        date: new Date().toISOString(),
-        status: "Confirmed",
-        total: checkoutTotal,
-        items: items.map((i) => ({
-          name: i.medicine.name,
-          quantity: i.quantity,
-          price: i.medicine.price,
-        })),
+    setIsValidating(true);
+    try {
+      const res = await fetch("/api/orders/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: items.map(i => ({ medicine_id: i.medicine.id, quantity: i.quantity })),
+          address_id: addresses[selectedAddressIndex].id,
+          prescription_id: selectedPrescriptionId || null,
+          coupon_code: appliedCoupon?.code || null,
+        })
       });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Validation failed");
+      
+      setValidationSummary(data.summary);
+      setStep(3);
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
+  const [paymentMethod, setPaymentMethod] = useState<"UPI" | "CARDS" | "COD">("UPI");
+
+  const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
+  const handlePlaceOrder = async () => {
+    setIsProcessing(true);
+    try {
+      const method = (paymentMethod === "UPI" || paymentMethod === "CARDS") ? "ONLINE" : "COD";
+
+      // 1. Create Order
+      const res = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: items.map(i => ({ medicine_id: i.medicine.id, quantity: i.quantity })),
+          address_id: addresses[selectedAddressIndex].id,
+          payment_method: method,
+          prescription_id: selectedPrescriptionId || null,
+          coupon_code: appliedCoupon?.code || null,
+        })
+      });
+      const orderData = await res.json();
+      if (!res.ok) throw new Error(orderData.error || "Order failed");
+
+      // Clear cart once order is created server-side
       clearCart();
-      toast.success("Order confirmed successfully!");
-      router.push("/order-success");
-    }, 1200);
+
+      const createdOrderId = orderData.data?.id;
+
+      // If order requires prescription approval (status === 'PENDING_PRESCRIPTION_APPROVAL')
+      if (orderData.data?.status === "PENDING_PRESCRIPTION_APPROVAL") {
+        toast.success("Order submitted for clinical verification! Our pharmacists will review your prescription.");
+        router.push(`/order-success?order_id=${createdOrderId}`);
+        return;
+      }
+
+      if (method === "COD") {
+        toast.success("Order confirmed successfully!");
+        router.push(`/order-success?order_id=${createdOrderId}`);
+        return;
+      }
+
+      // 2. Create Razorpay Order
+      const rzpRes = await fetch("/api/payments/create-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ order_id: createdOrderId })
+      });
+      const rzpData = await rzpRes.json();
+      if (!rzpRes.ok) throw new Error(rzpData.error || "Failed to create payment");
+
+      // 3. Load script & Open Checkout
+      const isLoaded = await loadRazorpayScript();
+      if (!isLoaded) {
+        throw new Error("Razorpay SDK failed to load. Are you online?");
+      }
+
+      const { data: { user } } = await supabase.auth.getUser();
+
+      const options = {
+        key: rzpData.key_id,
+        amount: rzpData.amount,
+        currency: rzpData.currency,
+        name: "MediQuick",
+        description: `Order ${createdOrderId}`,
+        order_id: rzpData.razorpay_order_id,
+        prefill: {
+          name: addresses[selectedAddressIndex]?.full_name || "",
+          email: user?.email || "",
+          contact: addresses[selectedAddressIndex]?.phone || "",
+        },
+        handler: async function (response: any) {
+          try {
+            const verifyRes = await fetch("/api/payments/verify", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              })
+            });
+            const verifyData = await verifyRes.json();
+            
+            if (verifyRes.ok && verifyData.success) {
+              toast.success("Payment successful!");
+              router.push(`/order-success?order_id=${createdOrderId}`);
+            } else {
+              toast.error(verifyData.error || "Payment verification failed");
+              router.push(`/orders/${createdOrderId}`);
+            }
+          } catch {
+            toast.error("Error verifying payment");
+            router.push(`/orders/${createdOrderId}`);
+          }
+        },
+        theme: { color: "#16a34a" }
+      };
+
+      const rzp1 = new (window as any).Razorpay(options);
+      rzp1.on('payment.failed', function (response: any) {
+        toast.error(response.error.description || "Payment failed");
+        router.push(`/orders/${createdOrderId}`);
+      });
+      rzp1.open();
+
+    } catch (error: any) {
+      toast.error(error.message);
+      setIsProcessing(false);
+    }
   };
 
   if (items.length === 0) {
     return (
       <div className="container mx-auto px-4 py-16 text-center">
-        <div className="max-w-md mx-auto bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
-          <h2 className="text-xl font-bold text-slate-800 mb-2">No items to checkout</h2>
-          <p className="text-slate-500 text-sm mb-6">Your cart is empty. Add medicines first to proceed to checkout.</p>
-          <Link href="/medicines" className="inline-block px-6 py-3 bg-primary text-white rounded-xl font-bold text-sm">
-            Browse Medicines
-          </Link>
-        </div>
+        <h2 className="text-xl font-bold mb-4">No items to checkout</h2>
+        <Link href="/medicines" className="px-6 py-3 bg-primary text-white rounded-xl">Browse Medicines</Link>
       </div>
     );
   }
@@ -137,462 +346,295 @@ export default function CheckoutPage() {
   return (
     <div className="bg-slate-50 min-h-screen py-8">
       <div className="container mx-auto px-4 max-w-4xl">
-        {/* Stepper Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between relative max-w-xl mx-auto px-4">
-            <div className="absolute left-6 right-6 top-1/2 -translate-y-1/2 h-1 bg-slate-200 -z-0 rounded-full" />
-            <div 
-              className="absolute left-6 top-1/2 -translate-y-1/2 h-1 bg-primary -z-0 rounded-full transition-all duration-300"
-              style={{ width: step === 1 ? "0%" : step === 2 ? "50%" : "90%" }}
-            />
-            
-            {[
-              { num: 1, label: "Delivery Address" },
-              { num: 2, label: "Order & Rx Review" },
-              { num: 3, label: "Secure Payment" }
-            ].map((s) => (
-              <div key={s.num} className="flex flex-col items-center gap-1.5 relative z-10 bg-slate-50 px-2">
-                <button
-                  type="button"
-                  onClick={() => step > s.num && setStep(s.num as any)}
-                  className={`w-9 h-9 rounded-full flex items-center justify-center font-black text-xs transition-all shadow-xs ${
-                    step > s.num
-                      ? "bg-primary text-white cursor-pointer"
-                      : step === s.num
-                      ? "bg-slate-900 text-white ring-4 ring-primary/20"
-                      : "bg-slate-200 text-slate-500"
-                  }`}
-                >
-                  {step > s.num ? <Check size={16} /> : s.num}
-                </button>
-                <span className={`text-[11px] font-bold ${step >= s.num ? "text-slate-900" : "text-slate-400"}`}>
-                  {s.label}
-                </span>
-              </div>
-            ))}
-          </div>
+        <div className="flex gap-4 mb-8 text-sm font-bold text-slate-500 justify-center">
+          <span className={step >= 1 ? "text-primary" : ""}>1. Address</span>
+          <span>&gt;</span>
+          <span className={step >= 2 ? "text-primary" : ""}>2. Review &amp; Prescription</span>
+          <span>&gt;</span>
+          <span className={step === 3 ? "text-primary" : ""}>3. Payment</span>
         </div>
 
-        {/* Content Box */}
         <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
           <AnimatePresence mode="wait">
-            {/* Step 1: Address */}
             {step === 1 && (
-              <motion.div 
-                key="step-1"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="p-6 sm:p-10"
-              >
+              <motion.div key="step-1" className="p-6 sm:p-10">
                 <div className="flex items-center justify-between mb-6">
-                  <div>
-                    <h2 className="text-xl sm:text-2xl font-black text-slate-900 flex items-center gap-2">
-                      <MapPin className="text-primary" /> Select Delivery Address
-                    </h2>
-                    <p className="text-xs text-slate-500 mt-0.5">Choose where you want your medicines delivered</p>
-                  </div>
-                  {!showAddressForm && (
-                    <button 
-                      onClick={() => setShowAddressForm(true)}
-                      className="inline-flex items-center gap-1.5 text-xs font-bold text-primary bg-green-50 px-3 py-1.5 rounded-xl border border-green-200 hover:bg-green-100 transition"
-                    >
-                      <Plus size={15} /> Add New
-                    </button>
-                  )}
+                  <h2 className="text-2xl font-black flex items-center gap-2"><MapPin /> Select Address</h2>
+                  <button onClick={() => setShowAddressForm(true)} className="text-primary font-bold">+ Add New</button>
                 </div>
 
-                {/* New Address Form */}
+                {isLoadingAddresses ? (
+                  <p>Loading addresses...</p>
+                ) : (
+                  <div className="space-y-3 mb-8">
+                    {addresses.map((addr, idx) => (
+                      <label key={addr.id} className={`flex gap-4 p-4 rounded-2xl border-2 cursor-pointer ${selectedAddressIndex === idx ? "border-primary bg-green-50" : "border-slate-200"}`}>
+                        <input type="radio" checked={selectedAddressIndex === idx} onChange={() => setSelectedAddressIndex(idx)} className="mt-1" />
+                        <div>
+                          <p className="font-bold">{addr.full_name}</p>
+                          <p className="text-sm">{addr.address_line_1}, {addr.city}, {addr.state} - {addr.postal_code}</p>
+                          <p className="text-sm">Phone: {addr.phone}</p>
+                        </div>
+                      </label>
+                    ))}
+                    {addresses.length === 0 && !showAddressForm && (
+                      <p className="text-red-500">No addresses found. Please add one.</p>
+                    )}
+                  </div>
+                )}
+
                 {showAddressForm && (
-                  <form onSubmit={handleAddNewAddress} className="mb-6 p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-4">
-                    <h3 className="font-bold text-sm text-slate-800">Add New Delivery Location</h3>
-                    <div className="grid sm:grid-cols-2 gap-3 text-xs">
-                      <div>
-                        <label className="font-semibold text-slate-600 block mb-1">Full Name *</label>
-                        <input 
-                          type="text" 
-                          required
-                          value={newAddr.name}
-                          onChange={(e) => setNewAddr({ ...newAddr, name: e.target.value })}
-                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 outline-none focus:border-primary"
-                          placeholder="e.g. Ayaz Khan"
-                        />
-                      </div>
-                      <div>
-                        <label className="font-semibold text-slate-600 block mb-1">Mobile Number *</label>
-                        <input 
-                          type="tel" 
-                          required
-                          maxLength={10}
-                          value={newAddr.phone}
-                          onChange={(e) => setNewAddr({ ...newAddr, phone: e.target.value })}
-                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 outline-none focus:border-primary"
-                          placeholder="10-digit mobile number"
-                        />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <label className="font-semibold text-slate-600 block mb-1">Flat, House no., Building, Street *</label>
-                        <input 
-                          type="text" 
-                          required
-                          value={newAddr.line1}
-                          onChange={(e) => setNewAddr({ ...newAddr, line1: e.target.value })}
-                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 outline-none focus:border-primary"
-                          placeholder="House/Flat number and road details"
-                        />
-                      </div>
-                      <div>
-                        <label className="font-semibold text-slate-600 block mb-1">Area / Locality *</label>
-                        <input 
-                          type="text" 
-                          required
-                          value={newAddr.locality}
-                          onChange={(e) => setNewAddr({ ...newAddr, locality: e.target.value })}
-                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 outline-none focus:border-primary"
-                          placeholder="e.g. Andheri West"
-                        />
-                      </div>
-                      <div>
-                        <label className="font-semibold text-slate-600 block mb-1">Pincode *</label>
-                        <input 
-                          type="text" 
-                          required
-                          maxLength={6}
-                          value={newAddr.pincode}
-                          onChange={(e) => setNewAddr({ ...newAddr, pincode: e.target.value })}
-                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 outline-none focus:border-primary"
-                          placeholder="6-digit pincode"
-                        />
-                      </div>
-                    </div>
-                    <div className="flex gap-2 justify-end pt-2">
-                      <button 
-                        type="button" 
-                        onClick={() => setShowAddressForm(false)}
-                        className="px-4 py-2 bg-slate-200 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-300 transition"
-                      >
-                        Cancel
-                      </button>
-                      <button 
-                        type="submit" 
-                        className="px-5 py-2 bg-primary text-white rounded-xl text-xs font-bold hover:bg-primary-dark transition"
-                      >
-                        Save Address
-                      </button>
-                    </div>
+                  <form onSubmit={handleAddNewAddress} className="mb-6 p-5 bg-slate-50 border rounded-2xl space-y-4">
+                    <input type="text" required placeholder="Full Name" value={newAddr.name} onChange={e => setNewAddr({...newAddr, name: e.target.value})} className="w-full border border-slate-300 bg-white text-slate-900 p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary" />
+                    <input type="tel" required placeholder="Phone" value={newAddr.phone} onChange={e => setNewAddr({...newAddr, phone: e.target.value})} className="w-full border border-slate-300 bg-white text-slate-900 p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary" />
+                    <input type="text" required placeholder="Address Line 1" value={newAddr.line1} onChange={e => setNewAddr({...newAddr, line1: e.target.value})} className="w-full border border-slate-300 bg-white text-slate-900 p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary" />
+                    <input type="text" required placeholder="Locality" value={newAddr.locality} onChange={e => setNewAddr({...newAddr, locality: e.target.value})} className="w-full border border-slate-300 bg-white text-slate-900 p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary" />
+                    <input type="text" required placeholder="Pincode" value={newAddr.pincode} onChange={e => setNewAddr({...newAddr, pincode: e.target.value})} className="w-full border border-slate-300 bg-white text-slate-900 p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary" />
+                    <button type="submit" className="px-4 py-2 bg-primary text-white rounded">Save Address</button>
+                    <button type="button" onClick={() => setShowAddressForm(false)} className="px-4 py-2 ml-2">Cancel</button>
                   </form>
                 )}
 
-                {/* Address Cards */}
-                <div className="space-y-3 mb-8">
-                  {addresses.map((addr, idx) => (
-                    <label 
-                      key={addr.id}
-                      className={`flex items-start gap-4 p-4 sm:p-5 rounded-2xl border-2 cursor-pointer transition-all ${
-                        selectedAddressIndex === idx
-                          ? "border-primary bg-green-50/40 shadow-xs"
-                          : "border-slate-200 hover:border-slate-300 bg-white"
-                      }`}
-                    >
-                      <input 
-                        type="radio" 
-                        name="deliveryAddress"
-                        checked={selectedAddressIndex === idx}
-                        onChange={() => setSelectedAddressIndex(idx)}
-                        className="mt-1 text-primary focus:ring-primary w-4 h-4"
-                      />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-black text-slate-900 text-sm sm:text-base">{addr.name}</span>
-                          <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
-                            {addr.type}
-                          </span>
-                        </div>
-                        <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-                          {addr.line1}, {addr.locality}, {addr.city}, {addr.state} - <strong>{addr.pincode}</strong>
-                        </p>
-                        <p className="text-xs text-slate-500 font-semibold mt-1">
-                          📞 Mobile: {addr.phone}
-                        </p>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-
-                <button 
-                  onClick={() => setStep(2)}
-                  className="w-full bg-primary text-white py-3.5 rounded-2xl font-bold hover:bg-primary-dark transition-colors flex items-center justify-center gap-2 shadow-md"
-                >
+                <button onClick={() => setStep(2)} disabled={addresses.length === 0} className="w-full bg-primary text-white py-3 rounded-2xl font-bold flex items-center justify-center gap-2">
                   Continue to Order Review <ArrowRight size={16} />
                 </button>
               </motion.div>
             )}
 
-            {/* Step 2: Order Review & Rx */}
             {step === 2 && (
-              <motion.div 
-                key="step-2"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="p-6 sm:p-10"
-              >
-                <h2 className="text-xl sm:text-2xl font-black text-slate-900 mb-1 flex items-center gap-2">
+              <motion.div key="step-2" className="p-6 sm:p-10">
+                <h2 className="text-2xl font-black mb-6 flex items-center gap-2">
                   <CheckCircle2 className="text-primary" /> Review Order Items
                 </h2>
-                <p className="text-xs text-slate-500 mb-6">Verify medicines and attach prescription if required</p>
 
-                {/* Selected Address Preview */}
-                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl mb-6 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <MapPin size={20} className="text-primary shrink-0" />
-                    <div>
-                      <span className="text-xs text-slate-400 font-semibold block">Delivering To</span>
-                      <p className="text-xs sm:text-sm font-bold text-slate-800">
-                        {addresses[selectedAddressIndex]?.name} • {addresses[selectedAddressIndex]?.line1}, {addresses[selectedAddressIndex]?.city} ({addresses[selectedAddressIndex]?.pincode})
-                      </p>
-                    </div>
-                  </div>
-                  <button 
-                    onClick={() => setStep(1)} 
-                    className="text-xs font-bold text-primary hover:underline shrink-0"
-                  >
-                    Change
-                  </button>
-                </div>
-
-                {/* Items Summary */}
-                <div className="border border-slate-200 rounded-2xl divide-y divide-slate-100 mb-6 overflow-hidden">
+                <div className="space-y-4 mb-6">
                   {items.map((item) => (
-                    <div key={item.medicine.id} className="p-3 sm:p-4 flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-12 h-12 bg-slate-50 border border-slate-100 rounded-xl shrink-0 flex items-center justify-center p-1">
-                          {item.medicine.imageUrl ? (
-                            <img src={item.medicine.imageUrl} alt={item.medicine.name} className="w-full h-full object-contain" />
-                          ) : (
-                            <FileText size={16} className="text-slate-400" />
-                          )}
-                        </div>
-                        <div className="truncate">
-                          <h4 className="font-bold text-xs sm:text-sm text-slate-900 truncate">{item.medicine.name}</h4>
-                          <span className="text-[11px] text-slate-400">Qty: {item.quantity} × ₹{item.medicine.price}</span>
-                        </div>
+                    <div key={item.medicine.id} className="flex justify-between items-center border border-slate-200 p-4 rounded-2xl">
+                      <div>
+                        <h4 className="font-bold text-slate-900">{item.medicine.name}</h4>
+                        <p className="text-xs text-slate-500">{item.medicine.brand} • Qty: {item.quantity}</p>
+                        {(item.medicine.prescriptionRequired || item.medicine.drugSchedule === "H" || item.medicine.drugSchedule === "H1") && (
+                          <span className="inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                            Schedule {item.medicine.drugSchedule || "H"} • Rx Required
+                          </span>
+                        )}
                       </div>
-                      <span className="font-bold text-sm text-slate-900 shrink-0">
-                        ₹{item.medicine.price * item.quantity}
-                      </span>
+                      <div className="text-right">
+                        <span className="font-bold text-slate-900">₹{item.medicine.price * item.quantity}</span>
+                      </div>
                     </div>
                   ))}
                 </div>
 
-                {/* Prescription Required Upload Box */}
+                {/* Real Prescription Selection & Inline Upload */}
                 {hasPrescriptionItems && (
-                  <div className="p-5 bg-amber-50/70 border-2 border-dashed border-amber-300 rounded-2xl mb-6">
+                  <div className="p-5 bg-amber-50/70 border border-amber-200 rounded-3xl mb-8 space-y-4">
                     <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
-                        <Upload size={20} />
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="font-bold text-sm text-amber-900 mb-1">
-                          Prescription Attachment Required (Schedule H Items)
-                        </h4>
-                        <p className="text-xs text-amber-800 leading-relaxed mb-3">
-                          Indian drug regulations require a valid prescription for antibiotics and prescription-only medicines.
+                      <AlertTriangle className="text-amber-600 w-5 h-5 shrink-0 mt-0.5" />
+                      <div>
+                        <h3 className="font-bold text-sm text-amber-950">
+                          Doctor&apos;s Prescription Required
+                        </h3>
+                        <p className="text-xs text-amber-800 mt-0.5">
+                          Indian drug regulations require a registered medical practitioner prescription for Schedule H/H1 items.
                         </p>
+                      </div>
+                    </div>
 
-                        {rxUploaded ? (
-                          <div className="inline-flex items-center gap-2 bg-green-100 text-green-800 px-3.5 py-1.5 rounded-xl text-xs font-bold border border-green-300">
-                            <Check size={14} className="stroke-[3]" /> Prescription Attached Successfully (Dr_Rx_Verified.pdf)
+                    {/* Prescriptions Selector */}
+                    {isLoadingPrescriptions ? (
+                      <p className="text-xs text-amber-700 flex items-center gap-2 py-2">
+                        <RefreshCw size={14} className="animate-spin" /> Loading your prescriptions...
+                      </p>
+                    ) : prescriptions.length > 0 ? (
+                      <div className="space-y-2">
+                        <p className="text-xs font-bold text-slate-700 uppercase">Select from your uploaded prescriptions:</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-56 overflow-y-auto">
+                          {prescriptions.map((rx) => {
+                            const isSelected = selectedPrescriptionId === rx.id;
+                            const isApproved = rx.status === "APPROVED";
+                            const isRejected = rx.status === "REJECTED";
+
+                            return (
+                              <label
+                                key={rx.id}
+                                className={`flex items-start gap-3 p-3 rounded-2xl border cursor-pointer transition ${
+                                  isSelected ? "bg-white border-primary shadow-xs" : "bg-white/60 border-amber-200 hover:bg-white"
+                                }`}
+                              >
+                                <input
+                                  type="radio"
+                                  name="rxRadio"
+                                  checked={isSelected}
+                                  onChange={() => setSelectedPrescriptionId(rx.id)}
+                                  className="mt-1 text-primary focus:ring-primary"
+                                />
+                                <div className="flex-1 min-w-0 text-xs">
+                                  <div className="flex items-center justify-between gap-1">
+                                    <span className="font-semibold text-slate-800 truncate">
+                                      Rx #{rx.id.slice(0, 8)}
+                                    </span>
+                                    <span
+                                      className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                                        isApproved
+                                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                          : isRejected
+                                          ? "bg-rose-50 text-rose-700 border border-rose-200"
+                                          : "bg-amber-50 text-amber-700 border border-amber-200"
+                                      }`}
+                                    >
+                                      {rx.status}
+                                    </span>
+                                  </div>
+                                  <p className="text-[11px] text-slate-400 mt-0.5">
+                                    {new Date(rx.created_at).toLocaleDateString()}
+                                  </p>
+                                  {rx.rejection_reason && (
+                                    <p className="text-[10px] text-rose-600 mt-1 truncate">
+                                      Reason: {rx.rejection_reason}
+                                    </p>
+                                  )}
+                                  {rx.url && (
+                                    <a
+                                      href={rx.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:underline mt-1"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <Eye size={12} /> View File
+                                    </a>
+                                  )}
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-amber-800 italic">
+                        No prescriptions found on your account. Please upload one below.
+                      </p>
+                    )}
+
+                    {/* Inline Upload Option */}
+                    <div className="pt-2 border-t border-amber-200/80">
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                        Or Upload a New Prescription Document:
+                      </label>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="file"
+                          accept=".jpg,.jpeg,.png,.pdf"
+                          onChange={handleInlineRxUpload}
+                          id="inlineRxFile"
+                          className="hidden"
+                          disabled={isUploadingRx}
+                        />
+                        <label
+                          htmlFor="inlineRxFile"
+                          className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-xl cursor-pointer transition shadow-xs disabled:opacity-50"
+                        >
+                          {isUploadingRx ? (
+                            <>
+                              <RefreshCw size={14} className="animate-spin" />
+                              <span>Validating &amp; Uploading...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Upload size={14} />
+                              <span>Choose File (PDF/Image)</span>
+                            </>
+                          )}
+                        </label>
+                        <span className="text-[11px] text-slate-500">Max size: 5MB</span>
+                      </div>
+                    </div>
+
+                    {/* Prescription Status Explanation */}
+                    {selectedRx && (
+                      <div className="p-3 bg-white rounded-2xl border border-slate-200 text-xs">
+                        {selectedRx.status === "APPROVED" ? (
+                          <div className="flex items-center gap-2 text-emerald-700 font-medium">
+                            <Check size={16} />
+                            <span>Prescription Approved! Your order will be confirmed immediately without dispatch delay.</span>
+                          </div>
+                        ) : selectedRx.status === "PENDING" ? (
+                          <div className="flex items-center gap-2 text-amber-800">
+                            <AlertTriangle size={16} className="text-amber-600" />
+                            <span>Prescription is pending verification. Your order will be created under <strong>PENDING PRESCRIPTION APPROVAL</strong> and reviewed by our licensed pharmacists prior to packing.</span>
                           </div>
                         ) : (
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setRxUploaded(true);
-                                toast.success("Prescription attached successfully!");
-                              }}
-                              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs"
-                            >
-                              <Upload size={14} /> Upload Doctor Prescription
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setRxUploaded(true);
-                                toast.info("Free Doctor Teleconsultation arranged after order placement.");
-                              }}
-                              className="px-4 py-2 bg-white border border-amber-300 text-amber-900 rounded-xl text-xs font-bold hover:bg-amber-50 transition"
-                            >
-                              Consult Doctor For Free
-                            </button>
+                          <div className="text-rose-700 font-medium">
+                            ⚠️ This prescription was rejected ({selectedRx.rejection_reason}). Please upload or select a valid prescription.
                           </div>
                         )}
                       </div>
-                    </div>
+                    )}
                   </div>
                 )}
 
-                {/* Navigation Buttons */}
                 <div className="flex gap-3">
-                  <button 
-                    onClick={() => setStep(1)}
-                    className="px-6 py-3.5 bg-slate-100 text-slate-700 rounded-2xl font-bold text-xs sm:text-sm hover:bg-slate-200 transition"
-                  >
-                    Back to Address
+                  <button onClick={() => setStep(1)} className="px-6 py-3 bg-slate-100 hover:bg-slate-200 rounded-2xl font-bold text-slate-700 transition">
+                    Back
                   </button>
-                  <button 
-                    onClick={() => setStep(3)}
-                    className="flex-1 bg-primary text-white py-3.5 rounded-2xl font-bold hover:bg-primary-dark transition flex items-center justify-center gap-2 shadow-md text-xs sm:text-sm"
+                  <button
+                    onClick={handleValidateOrder}
+                    disabled={isValidating || (hasPrescriptionItems && (!selectedPrescriptionId || selectedRx?.status === "REJECTED"))}
+                    className="flex-1 bg-primary hover:bg-primary-dark text-white py-3 rounded-2xl font-bold flex items-center justify-center transition disabled:opacity-50"
                   >
-                    Continue to Payment (₹{checkoutTotal}) <ArrowRight size={16} />
+                    {isValidating ? "Validating Cart & Prescription..." : "Continue to Payment"}
                   </button>
                 </div>
               </motion.div>
             )}
 
-            {/* Step 3: Payment */}
-            {step === 3 && (
-              <motion.div 
-                key="step-3"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="p-6 sm:p-10"
-              >
-                <div className="flex items-center justify-between mb-6">
-                  <div>
-                    <h2 className="text-xl sm:text-2xl font-black text-slate-900 flex items-center gap-2">
-                      <Lock className="text-primary" /> Select Payment Method
-                    </h2>
-                    <p className="text-xs text-slate-500 mt-0.5">256-Bit SSL Encrypted & Certified Gateway</p>
-                  </div>
+            {step === 3 && validationSummary && (
+              <motion.div key="step-3" className="p-6 sm:p-10">
+                <h2 className="text-2xl font-black mb-6 flex items-center gap-2">
+                  <Lock className="text-primary" /> Secure Payment
+                </h2>
+                
+                <div className="p-4 bg-slate-50 border rounded-2xl mb-8 text-sm">
+                  <div className="flex justify-between mb-2"><span>Subtotal</span><span>₹{validationSummary.subtotal}</span></div>
+                  {validationSummary.mrp_discount > 0 && <div className="flex justify-between mb-2 text-green-600"><span>MRP Savings</span><span>-₹{validationSummary.mrp_discount}</span></div>}
+                  {validationSummary.coupon_discount > 0 && <div className="flex justify-between mb-2 text-green-600"><span>Coupon Applied</span><span>-₹{validationSummary.coupon_discount}</span></div>}
+                  <div className="flex justify-between mb-2"><span>Delivery</span><span>{validationSummary.delivery_fee === 0 ? "FREE" : `₹${validationSummary.delivery_fee}`}</span></div>
+                  <div className="flex justify-between pt-2 border-t font-bold text-lg"><span>Total Amount</span><span className="text-primary">₹{validationSummary.total_amount}</span></div>
                 </div>
 
-                {/* Payment Options */}
-                <div className="space-y-4 mb-8">
-                  {/* Online UPI / Cards */}
-                  <label 
-                    className={`flex items-start gap-4 p-5 rounded-2xl border-2 cursor-pointer transition-all ${
-                      paymentMode === "Online"
-                        ? "border-primary bg-green-50/40 shadow-xs"
-                        : "border-slate-200 hover:border-slate-300 bg-white"
-                    }`}
-                  >
-                    <input 
-                      type="radio" 
-                      name="paymentOption"
-                      checked={paymentMode === "Online"}
-                      onChange={() => setPaymentMode("Online")}
-                      className="mt-1 text-primary focus:ring-primary w-4 h-4"
-                    />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <CreditCard size={18} className="text-primary" />
-                        <span className="font-black text-slate-900 text-sm sm:text-base">
-                          UPI, Debit / Credit Cards, Net Banking
-                        </span>
-                        <span className="text-[10px] font-black uppercase text-green-700 bg-green-100 px-2 py-0.5 rounded-full border border-green-300">
-                          RECOMMENDED
-                        </span>
-                      </div>
-                      <p className="text-xs text-green-700 font-bold mb-3">
-                        ⚡ Fast and secure instant payment via UPI, Cards, or Net Banking
-                      </p>
-
-                      {/* Payment Logos Strip */}
-                      <div className="flex flex-wrap items-center gap-2 pt-1">
-                        <span className="p-1 bg-white border border-slate-200 rounded-md shadow-2xs inline-flex items-center">
-                          <img src="/products/PhonePay.jpg" alt="PhonePe" className="h-5 w-auto object-contain" />
-                        </span>
-                        <span className="p-1 bg-white border border-slate-200 rounded-md shadow-2xs inline-flex items-center">
-                          <img src="/products/gpay.jpg" alt="Google Pay" className="h-5 w-auto object-contain" />
-                        </span>
-                        <span className="p-1 bg-white border border-slate-200 rounded-md shadow-2xs inline-flex items-center">
-                          <img src="/products/bhim.png" alt="BHIM UPI" className="h-4 w-auto object-contain" />
-                        </span>
-                        <span className="p-1 bg-black border border-slate-800 rounded-md shadow-2xs inline-flex items-center">
-                          <img src="/products/cred.png" alt="CRED" className="h-4 w-auto object-contain" />
-                        </span>
-                      </div>
-                    </div>
+                <div className="mb-6 space-y-3">
+                  <h3 className="font-bold">Select Payment Method</h3>
+                  <label className={`flex gap-4 p-4 rounded-2xl border-2 cursor-pointer ${paymentMethod === 'UPI' ? 'border-primary bg-green-50' : 'border-slate-200'}`}>
+                    <input type="radio" checked={paymentMethod === 'UPI'} onChange={() => setPaymentMethod('UPI')} />
+                    <span>UPI (GPay, PhonePe, BHIM, Paytm and others)</span>
                   </label>
-
-                  {/* Cash on Delivery */}
-                  <label 
-                    className={`flex items-start gap-4 p-5 rounded-2xl border-2 cursor-pointer transition-all ${
-                      paymentMode === "COD"
-                        ? "border-primary bg-green-50/40 shadow-xs"
-                        : "border-slate-200 hover:border-slate-300 bg-white"
-                    }`}
-                  >
-                    <input 
-                      type="radio" 
-                      name="paymentOption"
-                      checked={paymentMode === "COD"}
-                      onChange={() => setPaymentMode("COD")}
-                      className="mt-1 text-primary focus:ring-primary w-4 h-4"
-                    />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Banknote size={18} className="text-slate-600" />
-                        <span className="font-black text-slate-900 text-sm sm:text-base">
-                          Cash on Delivery (COD)
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-500">
-                        Pay cash or scan delivery agent UPI QR code when package arrives at your doorstep.
-                      </p>
-                    </div>
+                  <label className={`flex gap-4 p-4 rounded-2xl border-2 cursor-pointer ${paymentMethod === 'CARDS' ? 'border-primary bg-green-50' : 'border-slate-200'}`}>
+                    <input type="radio" checked={paymentMethod === 'CARDS'} onChange={() => setPaymentMethod('CARDS')} />
+                    <span>Cards / Netbanking</span>
+                  </label>
+                  <label className={`flex gap-4 p-4 rounded-2xl border-2 cursor-pointer ${paymentMethod === 'COD' ? 'border-primary bg-green-50' : 'border-slate-200'}`}>
+                    <input type="radio" checked={paymentMethod === 'COD'} onChange={() => setPaymentMethod('COD')} />
+                    <span>Cash on Delivery (COD)</span>
                   </label>
                 </div>
 
-                {/* Final Order Amount Breakdown */}
-                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2 mb-8 text-xs sm:text-sm">
-                  <div className="flex justify-between text-slate-600">
-                    <span>Items Subtotal</span>
-                    <span>₹{checkoutSubtotal}</span>
+                {hasPrescriptionItems && selectedRx?.status === "PENDING" && (
+                  <div className="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 leading-relaxed">
+                    ℹ️ <strong>Pharmacist Notice:</strong> Because your prescription is awaiting pharmacist review, your order will be reserved. Payment will be finalized once our clinical team verifies your prescription.
                   </div>
-                  {checkoutSavings > 0 && (
-                    <div className="flex justify-between text-green-600 font-semibold">
-                      <span>You saved</span>
-                      <span>-₹{checkoutSavings}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between text-slate-600">
-                    <span>Delivery Charges</span>
-                    <span>{checkoutDeliveryFee === 0 ? <strong className="text-green-600">FREE</strong> : `₹${checkoutDeliveryFee}`}</span>
-                  </div>
-                  {appliedCoupon && appliedCoupon.discount > 0 && (
-                    <div className="flex justify-between text-green-600 font-bold">
-                      <span>Coupon Discount ({appliedCoupon.code})</span>
-                      <span>-₹{appliedCoupon.discount}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between items-baseline pt-2 border-t border-slate-200 font-black text-base sm:text-lg text-slate-900">
-                    <span>Final Amount to Pay</span>
-                    <span className="text-primary text-xl sm:text-2xl">₹{checkoutTotal}</span>
-                  </div>
-                </div>
+                )}
 
-                {/* Actions */}
                 <div className="flex gap-3">
-                  <button 
-                    onClick={() => setStep(2)}
-                    className="px-6 py-3.5 bg-slate-100 text-slate-700 rounded-2xl font-bold text-xs sm:text-sm hover:bg-slate-200 transition"
-                  >
-                    Back to Review
+                  <button onClick={() => setStep(2)} className="px-6 py-3 bg-slate-100 hover:bg-slate-200 rounded-2xl font-bold text-slate-700 transition">
+                    Back
                   </button>
-                  <button 
+                  <button
                     onClick={handlePlaceOrder}
                     disabled={isProcessing}
-                    className="flex-1 bg-primary text-white py-3.5 rounded-2xl font-bold hover:bg-primary-dark transition flex items-center justify-center gap-2 shadow-lg active:scale-95 text-sm sm:text-base disabled:opacity-75"
+                    className="flex-1 bg-primary hover:bg-primary-dark text-white py-3 rounded-2xl font-bold shadow-xs transition disabled:opacity-50"
                   >
-                    {isProcessing ? (
-                      <span>Processing Order...</span>
-                    ) : (
-                      <span>{paymentMode === "Online" ? `Pay ₹${checkoutTotal} via UPI / Card` : `Place COD Order (₹${checkoutTotal})`}</span>
-                    )}
+                    {isProcessing ? "Processing..." : `Place Order (₹${validationSummary.total_amount})`}
                   </button>
                 </div>
               </motion.div>

@@ -1,5 +1,7 @@
 "use client";
 
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { 
   Check, 
@@ -10,141 +12,235 @@ import {
   Clock, 
   ShieldCheck, 
   FileText,
-  PhoneCall
+  PhoneCall,
+  ArrowRight,
+  RefreshCw,
+  AlertTriangle
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
 
-export default function OrderSuccessPage() {
-  const [orderId, setOrderId] = useState("");
-  const [orderDate, setOrderDate] = useState("");
+function OrderSuccessContent() {
+  const searchParams = useSearchParams();
+  const orderId = searchParams.get("order_id");
+
+  const [order, setOrder] = useState<any | null>(null);
+  const [loading, setLoading] = useState(Boolean(orderId));
 
   useEffect(() => {
-    // Generate realistic order ID & formatted current date
-    const randomNum = Math.floor(10000000 + Math.random() * 90000000);
-    setOrderId(`MQ-${randomNum}`);
+    if (!orderId) {
+      setLoading(false);
+      return;
+    }
 
-    const now = new Date();
-    setOrderDate(now.toLocaleDateString("en-IN", {
-      day: "numeric",
-      month: "short",
-      year: "numeric"
-    }));
-  }, []);
+    async function fetchOrder() {
+      try {
+        setLoading(true);
+        const res = await fetch(`/api/orders/${orderId}`);
+        const json = await res.json();
+        if (res.ok && json.success) {
+          setOrder(json.data);
+        }
+      } catch {
+        console.error("Failed to load order for confirmation screen");
+      } finally {
+        setLoading(false);
+      }
+    }
 
-  const orderSteps = [
-    { label: "Order Placed", time: "Just now", status: "completed" },
-    { label: "Pharmacist Verification", time: "Within 30 mins", status: "current" },
-    { label: "Packed & Sealed", time: "Today, 6:00 PM", status: "pending" },
-    { label: "Express Out for Delivery", time: "Tomorrow, 2:00 PM", status: "pending" },
-  ];
+    fetchOrder();
+  }, [orderId]);
+
+  const isPendingApproval = order?.status === "PENDING_PRESCRIPTION_APPROVAL";
 
   return (
     <div className="bg-slate-50 min-h-screen py-12 px-4 flex items-center justify-center">
       <motion.div 
-        initial={{ scale: 0.92, opacity: 0 }}
+        initial={{ scale: 0.94, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        transition={{ type: "spring", duration: 0.6 }}
+        transition={{ type: "spring", duration: 0.5 }}
         className="max-w-xl w-full bg-white p-6 sm:p-10 rounded-3xl shadow-xl border border-slate-200 text-center relative overflow-hidden"
       >
         {/* Top Gradient Ribbon */}
-        <div className="absolute top-0 left-0 w-full h-2.5 bg-gradient-to-r from-primary via-emerald-400 to-green-500" />
+        <div className={`absolute top-0 left-0 w-full h-2.5 ${
+          isPendingApproval 
+            ? "bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-600"
+            : "bg-gradient-to-r from-primary via-emerald-400 to-green-500"
+        }`} />
         
-        {/* Animated Checkmark Circle */}
-        <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-6 text-primary shadow-inner relative border-2 border-green-200">
+        {/* Animated Icon Circle */}
+        <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner relative border-2 ${
+          isPendingApproval
+            ? "bg-amber-50 text-amber-600 border-amber-200"
+            : "bg-green-50 text-primary border-green-200"
+        }`}>
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
-            transition={{ delay: 0.2, type: "spring", stiffness: 260, damping: 20 }}
+            transition={{ delay: 0.15, type: "spring", stiffness: 260, damping: 20 }}
           >
-            <Check size={42} className="stroke-[3]" />
+            {isPendingApproval ? (
+              <FileText size={38} className="stroke-[2.5]" />
+            ) : (
+              <Check size={42} className="stroke-[3]" />
+            )}
           </motion.div>
         </div>
 
         <h1 className="text-2xl sm:text-3xl font-black text-slate-900 mb-2">
-          Order Confirmed Successfully!
+          {isPendingApproval ? "Prescription Received & Order Reserved!" : "Order Confirmed Successfully!"}
         </h1>
-        <p className="text-slate-500 text-xs sm:text-sm mb-8 leading-relaxed max-w-md mx-auto">
-          Thank you for choosing MediQuick. Your generic medicine package has been scheduled for priority WHO-GMP certified packaging and dispatch.
+        <p className="text-slate-500 text-xs sm:text-sm mb-6 leading-relaxed max-w-md mx-auto">
+          {isPendingApproval 
+            ? "Your doctor's prescription has been submitted to our licensed pharmacist team for clinical review. Your items are reserved in stock."
+            : "Thank you for choosing MediQuick. Your generic medicine package has been scheduled for certified WHO-GMP packaging and fast courier dispatch."}
         </p>
 
         {/* Order Details Box */}
-        <div className="bg-slate-50 rounded-2xl p-5 mb-8 text-left border border-slate-200 space-y-3">
-          <div className="flex justify-between items-center pb-3 border-b border-slate-200 text-xs sm:text-sm">
-            <span className="text-slate-500 font-medium">Order Reference ID:</span>
-            <span className="font-mono font-black text-slate-900 bg-white px-2.5 py-1 rounded-lg border border-slate-200">
-              {orderId || "MQ-84920412"}
-            </span>
+        {loading ? (
+          <div className="bg-slate-50 rounded-2xl p-6 mb-8 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+            <RefreshCw size={14} className="animate-spin text-primary" />
+            <span>Loading real order details...</span>
           </div>
+        ) : (
+          <div className="bg-slate-50 rounded-2xl p-5 mb-8 text-left border border-slate-200 space-y-3">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-200 text-xs sm:text-sm">
+              <span className="text-slate-500 font-medium">Order ID:</span>
+              <span className="font-mono font-bold text-slate-900 bg-white px-2.5 py-1 rounded-lg border border-slate-200">
+                #{order?.id ? order.id.slice(0, 8).toUpperCase() : orderId ? orderId.slice(0, 8).toUpperCase() : "CONFIRMED"}
+              </span>
+            </div>
 
-          <div className="flex justify-between items-center text-xs sm:text-sm">
-            <span className="text-slate-500 font-medium">Order Date:</span>
-            <span className="font-semibold text-slate-800">{orderDate || "Today"}</span>
+            <div className="flex justify-between items-center text-xs sm:text-sm">
+              <span className="text-slate-500 font-medium">Order Date:</span>
+              <span className="font-semibold text-slate-800">
+                {order?.created_at ? new Date(order.created_at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "Today"}
+              </span>
+            </div>
+
+            {order?.total_amount && (
+              <div className="flex justify-between items-center text-xs sm:text-sm">
+                <span className="text-slate-500 font-medium">Total Amount:</span>
+                <span className="font-bold text-slate-900">₹{order.total_amount} ({order.payment_method})</span>
+              </div>
+            )}
+
+            <div className="flex justify-between items-center text-xs sm:text-sm">
+              <span className="text-slate-500 font-medium">Current Status:</span>
+              <span className={`font-bold px-2 py-0.5 rounded text-xs ${
+                isPendingApproval 
+                  ? "bg-amber-100 text-amber-800" 
+                  : "bg-emerald-100 text-emerald-800"
+              }`}>
+                {order?.status ? order.status.replace(/_/g, " ") : "CONFIRMED"}
+              </span>
+            </div>
           </div>
+        )}
 
-          <div className="flex justify-between items-center text-xs sm:text-sm">
-            <span className="text-slate-500 font-medium">Estimated Delivery:</span>
-            <span className="font-bold text-primary flex items-center gap-1">
-              <Truck size={15} /> Tomorrow, by 2:00 PM
-            </span>
-          </div>
-        </div>
-
-        {/* Delivery Timeline */}
+        {/* Live Delivery Progress Tracker */}
         <div className="mb-8 text-left">
           <h3 className="font-bold text-xs uppercase tracking-wider text-slate-400 mb-4">
-            Live Order Status
+            Order Fulfillment Pipeline
           </h3>
           <div className="space-y-4 relative">
             <div className="absolute left-4 top-2 bottom-2 w-0.5 bg-slate-200 -z-0" />
             
-            {orderSteps.map((s, idx) => (
+            {[
+              {
+                label: "Order Placed",
+                sub: "Cart validated & saved in database",
+                done: true,
+              },
+              {
+                label: isPendingApproval ? "Pharmacist Prescription Review" : "Clinical Verification",
+                sub: isPendingApproval ? "In Progress: Pharmacist verifying registration & dosage" : "Prescription verified / OTC cleared",
+                done: !isPendingApproval,
+                current: isPendingApproval,
+              },
+              {
+                label: "WHO-GMP Certified Packaging",
+                sub: "Batch number & expiry double-checked",
+                done: false,
+              },
+              {
+                label: "Courier Dispatch & Delivery",
+                sub: "Express delivery straight to your address",
+                done: false,
+              },
+            ].map((step, idx) => (
               <div key={idx} className="flex items-center gap-4 relative z-10">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
-                  s.status === "completed"
+                  step.done
                     ? "bg-primary text-white"
-                    : s.status === "current"
+                    : step.current
                     ? "bg-amber-500 text-white ring-4 ring-amber-100 animate-pulse"
                     : "bg-slate-100 text-slate-400 border border-slate-200"
                 }`}>
-                  {s.status === "completed" ? <Check size={14} className="stroke-[3]" /> : idx + 1}
+                  {step.done ? <Check size={14} className="stroke-[3]" /> : idx + 1}
                 </div>
-                <div className="flex-1 flex items-center justify-between text-xs">
-                  <span className={`font-bold ${s.status === "pending" ? "text-slate-400" : "text-slate-800"}`}>
-                    {s.label}
-                  </span>
-                  <span className="text-slate-400 text-[11px] font-medium">{s.time}</span>
+                <div className="flex-1 text-xs">
+                  <p className={`font-bold ${step.done || step.current ? "text-slate-900" : "text-slate-400"}`}>
+                    {step.label}
+                  </p>
+                  <p className="text-[11px] text-slate-500">{step.sub}</p>
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Help Banner */}
-        <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-2xl mb-8 flex items-center gap-3 text-left">
-          <PhoneCall size={20} className="text-blue-600 shrink-0" />
+        {/* Help Notice */}
+        <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-2xl mb-8 flex items-center gap-3 text-left">
+          <PhoneCall size={18} className="text-primary shrink-0" />
           <div className="text-xs">
-            <p className="font-bold text-blue-900">Need pharmacist consultation?</p>
-            <p className="text-blue-700 text-[11px]">Our licensed pharmacists are on standby at 1800-200-MEDI (Toll Free).</p>
+            <p className="font-bold text-emerald-950">Questions about your medicine order?</p>
+            <p className="text-emerald-800 text-[11px]">Contact our certified pharmacists at 1800-200-MEDI or reply to your order confirmation.</p>
           </div>
         </div>
 
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-3">
+          {orderId ? (
+            <Link 
+              href={`/orders/${orderId}`}
+              className="flex-1 flex items-center justify-center gap-2 bg-primary text-white py-3.5 rounded-2xl font-bold hover:bg-primary-dark transition shadow-md text-xs sm:text-sm"
+            >
+              <span>Track Order &amp; View Details</span>
+              <ArrowRight size={16} />
+            </Link>
+          ) : (
+            <Link 
+              href="/orders" 
+              className="flex-1 flex items-center justify-center gap-2 bg-primary text-white py-3.5 rounded-2xl font-bold hover:bg-primary-dark transition shadow-md text-xs sm:text-sm"
+            >
+              <span>View My Orders</span>
+              <ArrowRight size={16} />
+            </Link>
+          )}
+
           <Link 
             href="/medicines" 
-            className="flex-1 flex items-center justify-center gap-2 bg-primary text-white py-3.5 rounded-2xl font-bold hover:bg-primary-dark transition shadow-md active:scale-95 text-xs sm:text-sm"
+            className="flex items-center justify-center gap-2 bg-white text-slate-700 border border-slate-300 py-3.5 px-6 rounded-2xl font-bold hover:bg-slate-50 transition text-xs sm:text-sm"
           >
-            Continue Shopping <ChevronRight size={16} />
-          </Link>
-          <Link 
-            href="/" 
-            className="flex items-center justify-center gap-2 bg-white text-slate-700 border border-slate-300 py-3.5 px-6 rounded-2xl font-bold hover:bg-slate-50 transition active:scale-95 text-xs sm:text-sm"
-          >
-            <Home size={16} /> Home
+            <span>Continue Shopping</span>
+            <ChevronRight size={16} />
           </Link>
         </div>
       </motion.div>
     </div>
+  );
+}
+
+export default function OrderSuccessPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="bg-slate-50 min-h-screen py-12 flex items-center justify-center">
+          <RefreshCw className="animate-spin text-primary w-8 h-8" />
+        </div>
+      }
+    >
+      <OrderSuccessContent />
+    </Suspense>
   );
 }

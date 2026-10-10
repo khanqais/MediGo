@@ -77,7 +77,7 @@ export function filterMedicines(options: FilterOptions): Medicine[] {
       if (sortBy === "price_desc" || sortBy === "price-desc") return b.price - a.price;
       if (sortBy === "discount") return b.discountPercentage - a.discountPercentage;
       if (sortBy === "newest") return b.id.localeCompare(a.id);
-      if (sortBy === "featured") return b.rating - a.rating;
-      return b.rating - a.rating; // default to relevance/rating
+      if (sortBy === "featured") return (b.rating ?? 0) - (a.rating ?? 0);
+      return (b.rating ?? 0) - (a.rating ?? 0); // default to relevance/rating
     });
 }

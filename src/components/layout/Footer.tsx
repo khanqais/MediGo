@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Facebook, Instagram, Twitter, Youtube, Pill, ShieldCheck, Award, PhoneCall, Mail, Clock } from "lucide-react";
+import { Facebook, Instagram, Twitter, Youtube, Pill, ShieldCheck, Award, PhoneCall, Mail, Clock, AlertTriangle } from "lucide-react";
+import { siteConfig } from "@/config/site";
 
 export default function Footer() {
   return (
@@ -108,12 +109,21 @@ export default function Footer() {
           </div>
         </div>
 
+        {/* Statutory Medical Disclaimer */}
+        <div className="mb-8 p-4 bg-slate-800/80 border border-slate-700/80 rounded-2xl flex items-start gap-3 text-xs text-slate-400 leading-relaxed">
+          <AlertTriangle size={18} className="text-amber-400 shrink-0 mt-0.5" />
+          <div>
+            <span className="font-bold text-slate-300 block mb-0.5">Statutory Medical Disclaimer</span>
+            <p>{siteConfig.medicalDisclaimer}</p>
+          </div>
+        </div>
+
         {/* Bottom Bar */}
         <div className="border-t border-slate-800 pt-6 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-slate-400">
           <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-center sm:text-left">
-            <p>&copy; {new Date().getFullYear()} <strong>MediQuick Health Technologies Ltd.</strong> All rights reserved.</p>
+            <p>&copy; {new Date().getFullYear()} <strong>{siteConfig.compliance.registeredEntity}</strong> All rights reserved.</p>
             <span className="hidden sm:inline text-slate-700">•</span>
-            <p className="text-slate-400">Drug Licence No: <strong>DL-20B/21B-MH-MUM-2024-00892</strong></p>
+            <p className="text-slate-400">Drug Licence No: <strong className="font-mono text-slate-300">{siteConfig.compliance.drugLicenseNumber}</strong></p>
           </div>
 
           {/* Payment Icons */}

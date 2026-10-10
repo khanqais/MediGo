@@ -1,20 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { User, Package, FileText, MapPin, LogOut } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { User, Package, FileText, MapPin, LogOut, Loader2 } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
-import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 export default function AccountLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const logout = useAuthStore(state => state.logout);
-  const user = useAuthStore(state => state.user);
+  const { logout, profile, isAuthenticated, isLoading } = useAuthStore();
   const router = useRouter();
 
-  const handleLogout = () => {
-    logout();
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.replace(`/login?redirectTo=${encodeURIComponent(pathname)}`);
+    }
+  }, [isLoading, isAuthenticated, router, pathname]);
+
+  const handleLogout = async () => {
+    await logout();
     router.push("/login");
+    router.refresh();
   };
 
   const menuItems = [
@@ -23,6 +29,18 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
     { name: "Prescriptions", icon: FileText, path: "/prescriptions" },
     { name: "Addresses", icon: MapPin, path: "/addresses" },
   ];
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto px-4 py-8 bg-slate-50 min-h-[80vh] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return (
     <div className="container mx-auto px-4 py-8 bg-slate-50 min-h-[80vh]">
@@ -35,8 +53,8 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
               <div className="w-20 h-20 bg-primary/10 text-primary rounded-full flex items-center justify-center mx-auto mb-3">
                 <User size={32} />
               </div>
-              <h3 className="font-bold text-slate-900">{user?.name || "Guest"}</h3>
-              <p className="text-sm text-slate-500">{user?.phone || "+91 9876543210"}</p>
+              <h3 className="font-bold text-slate-900">{profile?.full_name || "User"}</h3>
+              <p className="text-sm text-slate-500">{profile?.email || ""}</p>
             </div>
             
             <nav className="p-2">

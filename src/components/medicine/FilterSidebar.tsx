@@ -1,7 +1,6 @@
 "use client";
 
 import { useFilterStore } from "@/store/filterStore";
-import { allMedicines } from "@/data/medicines";
 import * as Slider from "@radix-ui/react-slider";
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
@@ -10,7 +9,12 @@ const categoriesList = [
   "fever-pain", "diabetes", "heart", "vitamins", "skin-care", "antibiotics", "thyroid", "digestion"
 ];
 
-export default function FilterSidebar() {
+const DEFAULT_PHARMA_BRANDS = [
+  "Abbott", "Alembic", "Alkem", "Cipla", "Dr Reddys", "Glenmark", "Intas",
+  "Lupin", "Mankind", "Micro Labs", "Pfizer", "Sun Pharma", "Torrent", "Zydus"
+];
+
+export default function FilterSidebar({ availableBrands }: { availableBrands?: string[] }) {
   const { 
     categories, toggleCategory,
     brands, toggleBrand,
@@ -23,11 +27,13 @@ export default function FilterSidebar() {
 
   const [brandSearch, setBrandSearch] = useState("");
 
-  // 1. Derive brand list from allMedicines (unique brand values)
+  // 1. Derive brand list from availableBrands or pharmaceutical standards
   const allBrands = useMemo(() => {
-    const unique = Array.from(new Set(allMedicines.map((m) => m.brand))).filter(Boolean);
-    return unique.sort();
-  }, []);
+    if (availableBrands && availableBrands.length > 0) {
+      return Array.from(new Set(availableBrands)).sort();
+    }
+    return DEFAULT_PHARMA_BRANDS;
+  }, [availableBrands]);
 
   const filteredBrands = useMemo(() => {
     if (!brandSearch.trim()) return allBrands;

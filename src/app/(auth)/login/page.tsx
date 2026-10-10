@@ -2,24 +2,74 @@
 
 import Link from "next/link";
 import { Pill } from "lucide-react";
-import { useAuthStore } from "@/store/authStore";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { createClient } from "@/lib/supabase/client";
 
-export default function LoginPage() {
+/** Map Supabase error codes/messages to user-friendly messages without leaking internals */
+function getUserFriendlyError(error: { message: string; status?: number }): string {
+  const msg = error.message.toLowerCase();
+  if (msg.includes("invalid login credentials") || msg.includes("invalid credentials")) {
+    return "Invalid email or password. Please try again.";
+  }
+  if (msg.includes("email not confirmed")) {
+    return "Please verify your email before signing in. Check your inbox.";
+  }
+  if (msg.includes("expired") || msg.includes("session") || msg.includes("jwt")) {
+    return "Your session has expired. Please sign in again.";
+  }
+  if (msg.includes("too many requests") || msg.includes("rate limit")) {
+    return "Too many login attempts. Please wait a moment and try again.";
+  }
+  if (msg.includes("network") || msg.includes("fetch") || msg.includes("failed to fetch")) {
+    return "Network error. Please check your connection and try again.";
+  }
+  // Generic fallback — don't leak backend details
+  return "Unable to sign in. Please try again later.";
+}
+
+function LoginForm() {
   const router = useRouter();
-  const login = useAuthStore((state) => state.login);
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirectTo") || "/profile";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  useEffect(() => {
+    const errorParam = searchParams.get("error");
+    if (errorParam === "session_expired") {
+      toast.error("Your session has expired. Please sign in again.");
+    } else if (errorParam === "auth_callback_failed") {
+      toast.error("Authentication failed. Please try signing in again.");
+    }
+  }, [searchParams]);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Dummy login logic
-    if (email && password) {
-      login({ id: "1", name: "Ayaz Khan", phone: "9876543210", email });
+    if (!email || !password) return;
+
+    setIsSubmitting(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        toast.error(getUserFriendlyError(error));
+        return;
+      }
+
       toast.success("Successfully logged in");
-      router.push("/profile");
+      router.push(redirectTo);
+      router.refresh();
+    } catch {
+      toast.error("Network error. Please check your connection and try again.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -37,36 +87,40 @@ export default function LoginPage() {
         
         <form className="space-y-6" onSubmit={handleLogin}>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Email or Phone Number</label>
+            <label htmlFor="login-email" className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
             <input 
-              type="text" 
+              id="login-email"
+              type="email" 
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="appearance-none relative block w-full px-4 py-3 border border-slate-300 placeholder-slate-400 text-slate-900 rounded-xl focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm transition-colors" 
-              placeholder="Email or phone number" 
+              className="appearance-none relative block w-full px-4 py-3 border border-slate-300 placeholder-slate-400 text-slate-900 bg-white rounded-xl focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm transition-colors" 
+              placeholder="you@example.com" 
             />
           </div>
           <div>
             <div className="flex justify-between items-center mb-1">
-              <label className="block text-sm font-medium text-slate-700">Password</label>
-              <Link href="#" className="text-sm text-primary hover:underline font-medium">Forgot password?</Link>
+              <label htmlFor="login-password" className="block text-sm font-medium text-slate-700">Password</label>
+              <Link href="/forgot-password" className="text-sm text-primary hover:underline font-medium">Forgot password?</Link>
             </div>
             <input 
+              id="login-password"
               type="password" 
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="appearance-none relative block w-full px-4 py-3 border border-slate-300 placeholder-slate-400 text-slate-900 rounded-xl focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm transition-colors" 
+              className="appearance-none relative block w-full px-4 py-3 border border-slate-300 placeholder-slate-400 text-slate-900 bg-white rounded-xl focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm transition-colors" 
               placeholder="••••••••" 
             />
           </div>
           
           <button 
+            id="login-submit-btn"
             type="submit" 
-            className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-bold rounded-xl text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors shadow-md active:scale-[0.98]"
+            disabled={isSubmitting}
+            className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-bold rounded-xl text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors shadow-md active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Sign In
+            {isSubmitting ? "Signing In..." : "Sign In"}
           </button>
         </form>
 
@@ -91,12 +145,24 @@ export default function LoginPage() {
         </div>
 
         <p className="mt-8 text-center text-sm text-slate-600">
-          Don't have an account?{' '}
+          Don&apos;t have an account?{' '}
           <Link href="/register" className="font-bold text-primary hover:underline">
             Create an account
           </Link>
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-[80vh] flex items-center justify-center">
+        <div className="animate-pulse text-slate-400">Loading...</div>
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }

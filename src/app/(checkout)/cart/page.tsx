@@ -41,28 +41,33 @@ export default function CartPage() {
   const hasPrescriptionItems = items.some((item) => item.medicine.prescriptionRequired);
   const freeDeliveryThreshold = 499;
 
-  const handleApplyCoupon = (e: React.FormEvent) => {
+  const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
+
+  const handleApplyCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
-    const code = couponCode.trim().toUpperCase();
+    const code = couponCode.trim();
     if (!code) return;
 
-    if (code === "FIRST20") {
-      const disc = Math.round(cartSubtotal * 0.2);
-      setCoupon({ code, discount: Math.min(150, disc) });
-      toast.success("Coupon FIRST20 applied! 20% discount added.");
-    } else if (code === "GENERIC50") {
-      const disc = Math.round(cartSubtotal * 0.15);
-      setCoupon({ code, discount: disc });
-      toast.success("Coupon GENERIC50 applied! Extra generic discount added.");
-    } else if (code === "FREEDEL") {
-      setCoupon({ code, discount: 0 });
-      toast.success("Coupon FREEDEL applied! Free shipping unlocked.");
-    } else if (code === "HEALTH25") {
-      const disc = Math.round(cartSubtotal * 0.25);
-      setCoupon({ code, discount: Math.min(250, disc) });
-      toast.success("Coupon HEALTH25 applied! 25% discount added.");
-    } else {
-      toast.error("Invalid coupon code. Try FIRST20 or FREEDEL.");
+    try {
+      setIsApplyingCoupon(true);
+      const res = await fetch("/api/coupons/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, orderAmount: cartSubtotal }),
+      });
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        setCoupon({ code: data.data.code, discount: data.data.discount_amount });
+        toast.success(data.data.message || `Coupon ${data.data.code} applied!`);
+      } else {
+        toast.error(data.message || "Invalid coupon code.");
+        clearCoupon();
+      }
+    } catch {
+      toast.error("Failed to validate coupon.");
+    } finally {
+      setIsApplyingCoupon(false);
     }
   };
 

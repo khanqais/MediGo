@@ -2,12 +2,12 @@
 
 import FilterSidebar from "@/components/medicine/FilterSidebar";
 import MedicineCard from "@/components/medicine/MedicineCard";
-import { allMedicines } from "@/data/medicines";
-import { filterMedicines } from "@/utils/filterMedicines";
+import { Medicine } from "@/types/medicine";
 import { useFilterStore } from "@/store/filterStore";
 import { Filter, Search, X, ChevronRight, RotateCcw } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
+import { toast } from "sonner";
 
 export default function MedicinesPage() {
   const {
@@ -31,24 +31,61 @@ export default function MedicinesPage() {
 
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const [localSearch, setLocalSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  
+  const [medicines, setMedicines] = useState<Medicine[]>([]);
+  const [loading, setLoading] = useState(true);
 
+  // Debounce search
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(localSearch);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [localSearch]);
+
+  // Fetch medicines based on API filtering for primary filters,
+  // then apply remaining local filters (discount, inStock)
+  useEffect(() => {
+    async function fetchMedicines() {
+      setLoading(true);
+      try {
+        // We will fetch from API and let API handle core filters (category, brand, price, prescription, sort)
+        // Since API supports one category/brand currently, we might fetch all and filter locally, 
+        // OR construct query params if we updated API to support arrays. 
+        // Our API handles single category/brand. To support multiple, we can fetch all and filter client side 
+        // OR update API. Since we want to preserve exact functionality, let's fetch based on sort & search, 
+        // and filter the rest locally exactly as it was, to preserve array-based filtering.
+        
+        let url = `/api/medicines?limit=100`;
+        
+        if (sortBy) {
+          url += `&sort=${sortBy}`;
+        }
+        
+        // If there's a search term, we can use the search API
+        if (debouncedSearch) {
+          url = `/api/search?q=${encodeURIComponent(debouncedSearch)}&limit=100`;
+        }
+
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Failed to fetch medicines");
+        const data = await res.json();
+        setMedicines(data.data || []);
+      } catch (error) {
+        console.error(error);
+        toast.error("Failed to load medicines");
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchMedicines();
+  }, [sortBy, debouncedSearch]);
+
+  // Apply all filters that might have arrays (categories, brands) and ranges locally 
+  // to perfectly preserve the complex Zustand store functionality without changing the API too much
   const filteredMedicines = useMemo(() => {
-    // We apply the selected categories in a loop or handle it inside the filterStore, 
-    // but the common function only accepts a single category string.
-    // For multiple categories support in filterMedicines, we'd need an array. 
-    // Let's just adjust it here manually or use filterMedicines as the base and then filter by categories/brands.
-    
-    // Actually, filterMedicines is for reuse, let's use it for the base filters:
-    let results = filterMedicines({
-      query: localSearch,
-      minPrice,
-      maxPrice,
-      minDiscount,
-      maxDiscount,
-      inStockOnly,
-      prescriptionRequired: prescriptionRequired === null ? undefined : prescriptionRequired,
-      sortBy
-    });
+    let results = medicines;
 
     if (categories.length > 0) {
       results = results.filter(m => categories.includes(m.category));
@@ -57,9 +94,29 @@ export default function MedicinesPage() {
     if (brands.length > 0) {
       results = results.filter(m => brands.includes(m.brand));
     }
+    
+    if (minPrice > 0) {
+      results = results.filter(m => m.price >= minPrice);
+    }
+    
+    if (maxPrice < 5000) {
+      results = results.filter(m => m.price <= maxPrice);
+    }
+    
+    if (minDiscount > 0 || maxDiscount < 80) {
+      results = results.filter(m => m.discountPercentage >= minDiscount && m.discountPercentage <= maxDiscount);
+    }
+    
+    if (inStockOnly) {
+      results = results.filter(m => m.stock > 0);
+    }
+    
+    if (prescriptionRequired !== null) {
+      results = results.filter(m => m.prescriptionRequired === prescriptionRequired);
+    }
 
     return results;
-  }, [localSearch, categories, brands, minPrice, maxPrice, minDiscount, maxDiscount, inStockOnly, prescriptionRequired, sortBy]);
+  }, [medicines, categories, brands, minPrice, maxPrice, minDiscount, maxDiscount, inStockOnly, prescriptionRequired]);
 
   const hasActiveFilters = 
     categories.length > 0 || 
@@ -122,7 +179,7 @@ export default function MedicinesPage() {
 
         {/* Filters Sidebar (280px) */}
         <aside className={`${mobileFilterOpen ? "block" : "hidden"} md:block w-full md:w-[280px] shrink-0`}>
-          <FilterSidebar />
+          <FilterSidebar availableBrands={Array.from(new Set(medicines.map((m) => m.brand))).filter(Boolean)} />
         </aside>
 
         {/* Main Product Column */}
@@ -217,7 +274,11 @@ export default function MedicinesPage() {
           </div>
 
           {/* 4-Column Responsive Grid */}
-          {filteredMedicines.length === 0 ? (
+          {loading ? (
+            <div className="py-20 flex justify-center">
+               <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+            </div>
+          ) : filteredMedicines.length === 0 ? (
             <div className="text-center py-20 bg-white rounded-3xl border border-slate-200 p-8 shadow-xs">
               <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
                 💊

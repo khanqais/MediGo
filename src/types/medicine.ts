@@ -1,3 +1,5 @@
+export type DrugSchedule = 'OTC' | 'H' | 'H1' | 'X';
+
 export interface Medicine {
   id: string;
   name: string;
@@ -8,11 +10,12 @@ export interface Medicine {
   price: number;
   discountPercentage: number;
   prescriptionRequired: boolean;
+  drugSchedule?: DrugSchedule;
   category: string;
   imageUrl: string;
   stock: number;
-  rating: number;
-  reviewsCount: number;
+  rating?: number | null;
+  reviewsCount?: number;
   description: string;
   directions: string;
   sideEffects: string;

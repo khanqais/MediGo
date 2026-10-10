@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { Medicine } from "@/types/medicine";
+import { FREE_DELIVERY_THRESHOLD, STANDARD_DELIVERY_FEE } from "@/config/site";
 
 export interface CartItem {
   medicine: Medicine;
@@ -86,7 +87,7 @@ export const useCartStore = create<CartState>()(
       deliveryFee: () => {
         if (get().items.length === 0) return 0;
         if (get().appliedCoupon?.code === "FREEDEL") return 0;
-        return get().subtotal() >= 499 ? 0 : 49;
+        return get().subtotal() >= FREE_DELIVERY_THRESHOLD ? 0 : STANDARD_DELIVERY_FEE;
       },
       total: () => {
         if (get().items.length === 0) return 0;

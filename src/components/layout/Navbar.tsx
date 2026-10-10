@@ -2,16 +2,19 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   Search, MapPin, User, ShoppingBag, Pill, Heart, ChevronDown, Menu, X, ShieldCheck
 } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
+import { useAuthStore } from "@/store/authStore";
 
 export default function Navbar() {
   const router = useRouter();
   const cartCount = useCartStore((state) => state.cartCount());
   const openDrawer = useCartStore((state) => state.openDrawer);
+
+  const { isAuthenticated, profile } = useAuthStore();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryPrefix, setCategoryPrefix] = useState("All");
@@ -19,10 +22,73 @@ export default function Navbar() {
   const [locationMenuOpen, setLocationMenuOpen] = useState(false);
   const [selectedCity, setSelectedCity] = useState("Mumbai 400001");
 
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  
+  useEffect(() => {
+    setHighlightedIndex(-1);
+    if (!searchQuery.trim()) {
+      setSuggestions([]);
+      return;
+    }
+    
+    const abortController = new AbortController();
+    
+    const delayDebounceFn = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(searchQuery.trim())}&limit=5`, {
+          signal: abortController.signal
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setSuggestions(data.data || []);
+        } else {
+          setSuggestions([]);
+        }
+      } catch (err: any) {
+        if (err.name !== 'AbortError') {
+          console.error("Search failed", err);
+          setSuggestions([]);
+        }
+      } finally {
+        if (!abortController.signal.aborted) {
+          setIsSearching(false);
+        }
+      }
+    }, 300);
+
+    return () => {
+      clearTimeout(delayDebounceFn);
+      abortController.abort();
+    };
+  }, [searchQuery]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showSuggestions || suggestions.length === 0) return;
+    
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedIndex(prev => (prev < suggestions.length - 1 ? prev + 1 : prev));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedIndex(prev => (prev > 0 ? prev - 1 : -1));
+    } else if (e.key === 'Enter' && highlightedIndex >= 0) {
+      e.preventDefault();
+      router.push(`/medicines/${suggestions[highlightedIndex].slug}`);
+      setShowSuggestions(false);
+    } else if (e.key === 'Escape') {
+      setShowSuggestions(false);
+    }
+  };
+
   const cities = ["Mumbai 400001", "Delhi 110001", "Bengaluru 560001", "Hyderabad 500001", "Chennai 600001", "Kolkata 700001"];
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setShowSuggestions(false);
     if (searchQuery.trim()) {
       router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
     } else {
@@ -96,37 +162,75 @@ export default function Navbar() {
         </div>
 
         {/* Center: Search Bar with category dropdown prefix */}
-        <form onSubmit={handleSearchSubmit} className="flex-1 max-w-xl hidden md:flex items-center">
-          <div className="relative w-full flex items-center shadow-xs rounded-full border border-slate-300 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 transition-all bg-white overflow-hidden">
-            <select
-              value={categoryPrefix}
-              onChange={(e) => setCategoryPrefix(e.target.value)}
-              className="h-11 pl-3.5 pr-2 text-xs font-semibold text-slate-600 bg-slate-50 border-r border-slate-200 outline-none cursor-pointer hover:bg-slate-100"
-            >
-              <option value="All">All</option>
-              <option value="Medicines">Medicines</option>
-              <option value="Antibiotics">Antibiotics</option>
-              <option value="Syrups">Syrups</option>
-              <option value="Skin">Skin Care</option>
-            </select>
-            
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search medicines, brands, salt names..."
-              className="flex-1 h-11 px-4 text-sm text-slate-800 placeholder-slate-400 outline-none bg-transparent"
-            />
+        <div className="flex-1 max-w-xl hidden md:block relative z-50">
+          <form onSubmit={handleSearchSubmit} className="flex items-center relative z-50">
+            <div className="relative w-full flex items-center shadow-xs rounded-full border border-slate-300 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 transition-all bg-white overflow-hidden">
+              <select
+                value={categoryPrefix}
+                onChange={(e) => setCategoryPrefix(e.target.value)}
+                className="h-11 pl-3.5 pr-2 text-xs font-semibold text-slate-600 bg-slate-50 border-r border-slate-200 outline-none cursor-pointer hover:bg-slate-100"
+              >
+                <option value="All">All</option>
+                <option value="Medicines">Medicines</option>
+                <option value="Antibiotics">Antibiotics</option>
+                <option value="Syrups">Syrups</option>
+                <option value="Skin">Skin Care</option>
+              </select>
+              
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setShowSuggestions(true);
+                }}
+                onFocus={() => setShowSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                onKeyDown={handleKeyDown}
+                placeholder="Search medicines, brands, salt names..."
+                className="flex-1 h-11 px-4 text-sm text-slate-800 placeholder-slate-400 outline-none bg-transparent"
+              />
 
-            <button
-              type="submit"
-              className="h-9 px-4 mr-1 bg-primary text-white hover:bg-primary-dark font-semibold rounded-full flex items-center justify-center transition active:scale-95 shadow-xs"
-              aria-label="Search"
-            >
-              <Search size={16} />
-            </button>
-          </div>
-        </form>
+              <button
+                type="submit"
+                className="h-9 px-4 mr-1 bg-primary text-white hover:bg-primary-dark font-semibold rounded-full flex items-center justify-center transition active:scale-95 shadow-xs"
+                aria-label="Search"
+              >
+                <Search size={16} />
+              </button>
+            </div>
+          </form>
+
+          {/* Autocomplete Dropdown */}
+          {showSuggestions && searchQuery.trim() && (
+            <div className="absolute top-full mt-2 w-full bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden z-[60]">
+              {isSearching ? (
+                <div className="p-4 text-sm text-slate-500 text-center">Searching...</div>
+              ) : suggestions.length > 0 ? (
+                <ul className="max-h-80 overflow-y-auto">
+                  {suggestions.map((med, index) => (
+                    <li 
+                      key={med.id} 
+                      className={`border-b border-slate-100 last:border-0 ${index === highlightedIndex ? 'bg-slate-100' : 'hover:bg-slate-50'}`}
+                    >
+                      <Link 
+                        href={`/medicines/${med.slug}`}
+                        className="block p-3"
+                        onClick={() => setShowSuggestions(false)}
+                      >
+                        <div className="font-bold text-sm text-slate-900">{med.name}</div>
+                        <div className="text-xs text-slate-500 mt-0.5 truncate">{med.composition}</div>
+                        <div className="text-xs font-bold text-primary mt-1">₹{med.price}</div>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="p-4 text-sm text-slate-500 text-center">No medicines found.</div>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Right: Actions */}
         <div className="flex items-center gap-2 sm:gap-4">
@@ -139,14 +243,35 @@ export default function Navbar() {
             <Heart size={20} className="stroke-[1.75]" />
           </Link>
 
-          {/* Sign In */}
-          <Link
-            href="/login"
-            className="hidden sm:flex items-center gap-2 text-sm font-semibold text-slate-700 hover:text-primary px-3 py-2 rounded-xl hover:bg-slate-50 transition"
-          >
-            <User size={20} className="text-slate-600 stroke-[1.75]" />
-            <span>Sign In</span>
-          </Link>
+          {/* Staff Portal Link if Admin or Pharmacist */}
+          {isAuthenticated && (profile?.role === "admin" || profile?.role === "pharmacist") && (
+            <Link
+              href="/admin"
+              className="hidden md:flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-full transition shadow-xs"
+            >
+              <ShieldCheck size={15} />
+              <span>{profile.role === "admin" ? "Admin Portal" : "Pharmacist Portal"}</span>
+            </Link>
+          )}
+
+          {/* User Account / Sign In */}
+          {isAuthenticated ? (
+            <Link
+              href="/profile"
+              className="hidden sm:flex items-center gap-2 text-sm font-semibold text-slate-700 hover:text-primary px-3 py-2 rounded-xl hover:bg-slate-50 transition"
+            >
+              <User size={20} className="text-primary stroke-[2]" />
+              <span className="max-w-[120px] truncate">{profile?.full_name ? profile.full_name.split(" ")[0] : "Account"}</span>
+            </Link>
+          ) : (
+            <Link
+              href="/login"
+              className="hidden sm:flex items-center gap-2 text-sm font-semibold text-slate-700 hover:text-primary px-3 py-2 rounded-xl hover:bg-slate-50 transition"
+            >
+              <User size={20} className="text-slate-600 stroke-[1.75]" />
+              <span>Sign In</span>
+            </Link>
+          )}
 
           {/* Cart Button with Orange Badge */}
           <button
@@ -189,9 +314,15 @@ export default function Navbar() {
               <MapPin size={16} className="text-primary" />
               <span>Deliver to: <strong>{selectedCity}</strong></span>
             </div>
-            <Link href="/login" onClick={() => setMobileMenuOpen(false)} className="text-xs font-bold text-primary">
-              Sign In / Register
-            </Link>
+            {isAuthenticated ? (
+              <Link href="/profile" onClick={() => setMobileMenuOpen(false)} className="text-xs font-bold text-primary">
+                My Account ({profile?.full_name ? profile.full_name.split(" ")[0] : "Profile"})
+              </Link>
+            ) : (
+              <Link href="/login" onClick={() => setMobileMenuOpen(false)} className="text-xs font-bold text-primary">
+                Sign In / Register
+              </Link>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-2 text-sm font-medium text-slate-700">
             <Link href="/medicines" onClick={() => setMobileMenuOpen(false)} className="p-2 bg-slate-50 rounded-lg hover:bg-green-50">
@@ -206,6 +337,11 @@ export default function Navbar() {
             <Link href="/orders" onClick={() => setMobileMenuOpen(false)} className="p-2 bg-slate-50 rounded-lg hover:bg-green-50">
               📦 Track Orders
             </Link>
+            {isAuthenticated && (profile?.role === "admin" || profile?.role === "pharmacist") && (
+              <Link href="/admin" onClick={() => setMobileMenuOpen(false)} className="p-2 bg-emerald-50 text-emerald-800 font-semibold rounded-lg hover:bg-emerald-100 col-span-2">
+                🛡️ {profile.role === "admin" ? "Admin Portal" : "Pharmacist Portal"}
+              </Link>
+            )}
           </div>
         </div>
       )}

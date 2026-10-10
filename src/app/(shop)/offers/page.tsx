@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { allMedicines } from "@/data/medicines";
 import MedicineCard from "@/components/medicine/MedicineCard";
+import { Medicine } from "@/types/medicine";
 import { 
   Sparkles, 
   Tag, 
@@ -62,6 +62,26 @@ export default function OffersPage() {
   
   // Countdown timer simulation
   const [timeLeft, setTimeLeft] = useState({ hours: 8, minutes: 24, seconds: 45 });
+  
+  const [medicines, setMedicines] = useState<Medicine[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchMedicines() {
+      try {
+        const res = await fetch("/api/medicines?limit=100");
+        if (!res.ok) throw new Error("Failed to fetch");
+        const data = await res.json();
+        setMedicines(data.data || []);
+      } catch (error) {
+        console.error(error);
+        toast.error("Failed to load medicines");
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchMedicines();
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -84,10 +104,10 @@ export default function OffersPage() {
 
   // Top discounted medicines (60%+ off)
   const topDiscountMedicines = useMemo(() => {
-    return allMedicines
+    return medicines
       .filter((m) => m.discountPercentage >= 60)
       .slice(0, 10);
-  }, []);
+  }, [medicines]);
 
   return (
     <div className="bg-slate-50 min-h-screen pb-20">
@@ -246,11 +266,17 @@ export default function OffersPage() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {topDiscountMedicines.map((medicine) => (
-              <MedicineCard key={medicine.id} medicine={medicine} />
-            ))}
-          </div>
+          {loading ? (
+             <div className="py-20 flex justify-center">
+               <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+             </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              {topDiscountMedicines.map((medicine) => (
+                <MedicineCard key={medicine.id} medicine={medicine} />
+              ))}
+            </div>
+          )}
         </section>
       </div>
     </div>

@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
-import { allMedicines } from "@/data/medicines";
-import { filterMedicines } from "@/utils/filterMedicines";
 import MedicineCard from "@/components/medicine/MedicineCard";
 import { ChevronRight, Filter, Search, SlidersHorizontal, ArrowUpDown, Sparkles, ShieldCheck } from "lucide-react";
+import { Medicine } from "@/types/medicine";
+import { toast } from "sonner";
 
 const categoryMeta: Record<string, { title: string; desc: string; icon: string; bannerGradient: string }> = {
   "fever-pain": {
@@ -75,6 +75,25 @@ export default function CategoryDetailPage({ params }: { params: { cat: string }
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<"featured" | "price-asc" | "price-desc" | "discount">("featured");
   const [rxFilter, setRxFilter] = useState<"all" | "otc" | "rx">("all");
+  const [medicines, setMedicines] = useState<Medicine[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchCategoryMedicines() {
+      try {
+        const res = await fetch(`/api/medicines?category=${catSlug}&limit=100`);
+        if (!res.ok) throw new Error("Failed to fetch");
+        const data = await res.json();
+        setMedicines(data.data || []);
+      } catch (error) {
+        console.error(error);
+        toast.error("Failed to load category medicines");
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchCategoryMedicines();
+  }, [catSlug]);
 
   const meta = categoryMeta[catSlug] || {
     title: catSlug.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" "),
@@ -84,13 +103,36 @@ export default function CategoryDetailPage({ params }: { params: { cat: string }
   };
 
   const filteredMedicines = useMemo(() => {
-    return filterMedicines({
-      category: catSlug,
-      query: searchTerm,
-      rxFilter,
-      sortBy
+    // Basic local filter replicating previous filterMedicines behavior for this specific category
+    let results = medicines;
+    
+    if (searchTerm) {
+      const q = searchTerm.toLowerCase();
+      results = results.filter(m => 
+        m.name.toLowerCase().includes(q) || 
+        m.composition.toLowerCase().includes(q) || 
+        m.brand.toLowerCase().includes(q)
+      );
+    }
+
+    if (rxFilter === "rx") {
+      results = results.filter(m => m.prescriptionRequired);
+    } else if (rxFilter === "otc") {
+      results = results.filter(m => !m.prescriptionRequired);
+    }
+
+    // Sort
+    results = [...results].sort((a, b) => {
+      switch (sortBy) {
+        case "price-asc": return a.price - b.price;
+        case "price-desc": return b.price - a.price;
+        case "discount": return b.discountPercentage - a.discountPercentage;
+        default: return 0;
+      }
     });
-  }, [catSlug, searchTerm, sortBy, rxFilter]);
+
+    return results;
+  }, [medicines, searchTerm, sortBy, rxFilter]);
 
   return (
     <div className="bg-slate-50 min-h-screen pb-16">
@@ -123,7 +165,7 @@ export default function CategoryDetailPage({ params }: { params: { cat: string }
             </div>
 
             <div className="bg-white/15 backdrop-blur-md rounded-2xl p-4 border border-white/20 text-center shrink-0 self-start md:self-center">
-              <span className="block text-2xl sm:text-3xl font-black">{filteredMedicines.length}</span>
+              <span className="block text-2xl sm:text-3xl font-black">{loading ? "-" : filteredMedicines.length}</span>
               <span className="text-xs text-white/80 uppercase tracking-wider font-semibold">Available Products</span>
             </div>
           </div>
@@ -186,14 +228,18 @@ export default function CategoryDetailPage({ params }: { params: { cat: string }
         </div>
 
         {/* Product Grid or Empty State */}
-        {filteredMedicines.length === 0 ? (
+        {loading ? (
+          <div className="py-20 flex justify-center">
+            <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+          </div>
+        ) : filteredMedicines.length === 0 ? (
           <div className="bg-white rounded-3xl p-12 text-center border border-slate-200 max-w-lg mx-auto shadow-xs">
             <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">
               🔍
             </div>
             <h3 className="text-lg font-bold text-slate-900 mb-2">No medicines found</h3>
             <p className="text-slate-500 text-xs sm:text-sm mb-6">
-              We couldn't find any products matching your specific filter criteria in this category.
+              We couldn&apos;t find any products matching your specific filter criteria in this category.
             </p>
             <div className="flex justify-center gap-3">
               <button 

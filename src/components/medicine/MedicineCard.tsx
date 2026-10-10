@@ -12,15 +12,11 @@ export default function MedicineCard({ medicine }: { medicine: Medicine }) {
   const addItem = useCartStore((state) => state.addItem);
   const [isAdded, setIsAdded] = useState(false);
 
-  const savings = Math.max(0, medicine.mrp - medicine.price);
-
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
     addItem(medicine);
     setIsAdded(true);
-    toast.success(`${medicine.name} added to cart!`, {
-      description: `Saved ₹${savings} with generic pricing.`,
-    });
+    toast.success(`${medicine.name} added to cart!`);
     setTimeout(() => setIsAdded(false), 1800);
   };
 
@@ -28,7 +24,15 @@ export default function MedicineCard({ medicine }: { medicine: Medicine }) {
     <div className="group bg-white rounded-2xl border border-slate-200 hover:border-primary/50 shadow-xs hover:shadow-lg transition-all duration-300 overflow-hidden flex flex-col h-full relative">
       {/* Top Badges */}
       <div className="absolute top-2.5 left-2.5 right-2.5 z-10 flex items-center justify-between pointer-events-none">
-        {medicine.prescriptionRequired ? (
+        {medicine.drugSchedule === "X" ? (
+          <span className="inline-flex items-center gap-1 bg-red-600 text-white text-[10px] font-black uppercase px-2 py-0.5 rounded-full shadow-xs">
+            Schedule X
+          </span>
+        ) : medicine.drugSchedule === "H1" ? (
+          <span className="inline-flex items-center gap-1 bg-rose-600 text-white text-[10px] font-black uppercase px-2 py-0.5 rounded-full shadow-xs">
+            <FileText size={10} /> Rx H1
+          </span>
+        ) : medicine.prescriptionRequired || medicine.drugSchedule === "H" ? (
           <span className="inline-flex items-center gap-1 bg-accent text-white text-[10px] font-black uppercase px-2 py-0.5 rounded-full shadow-xs">
             <FileText size={10} /> Rx
           </span>
@@ -37,7 +41,7 @@ export default function MedicineCard({ medicine }: { medicine: Medicine }) {
         )}
 
         {medicine.discountPercentage > 0 && (
-          <span className="bg-primary text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-xs">
+          <span className="bg-primary text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-xs ml-auto">
             {medicine.discountPercentage}% OFF
           </span>
         )}
@@ -94,35 +98,44 @@ export default function MedicineCard({ medicine }: { medicine: Medicine }) {
                 <span className="text-xs text-slate-400 line-through">₹{medicine.mrp}</span>
               )}
             </div>
-
-            {savings > 0 && (
-              <span className="text-[11px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded">
-                Save ₹{savings}
+            {medicine.packSize && (
+              <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                {medicine.packSize}
               </span>
             )}
           </div>
 
           {/* Add to Cart Button */}
-          <button 
-            onClick={handleAddToCart}
-            className={`w-full mt-2.5 flex items-center justify-center gap-2 py-2.5 rounded-full font-bold text-xs transition-all shadow-xs active:scale-95 ${
-              isAdded 
-                ? "bg-emerald-600 text-white shadow-emerald-200" 
-                : "bg-primary hover:bg-primary-dark text-white hover:shadow-primary/20 hover:shadow-md"
-            }`}
-          >
-            {isAdded ? (
-              <>
-                <Check size={15} className="stroke-[3]" />
-                Added to Cart
-              </>
-            ) : (
-              <>
-                <ShoppingCart size={15} />
-                Add to Cart
-              </>
-            )}
-          </button>
+          {medicine.drugSchedule === "X" ? (
+            <button 
+              disabled
+              className="w-full mt-2.5 py-2.5 rounded-full font-bold text-xs bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
+              title="Schedule X drugs cannot be sold online as per Indian law"
+            >
+              In-Store Retail Only
+            </button>
+          ) : (
+            <button 
+              onClick={handleAddToCart}
+              className={`w-full mt-2.5 flex items-center justify-center gap-2 py-2.5 rounded-full font-bold text-xs transition-all shadow-xs active:scale-95 ${
+                isAdded 
+                  ? "bg-emerald-600 text-white shadow-emerald-200" 
+                  : "bg-primary hover:bg-primary-dark text-white hover:shadow-primary/20 hover:shadow-md"
+              }`}
+            >
+              {isAdded ? (
+                <>
+                  <Check size={15} className="stroke-[3]" />
+                  Added to Cart
+                </>
+              ) : (
+                <>
+                  <ShoppingCart size={15} />
+                  Add to Cart
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
     </div>
