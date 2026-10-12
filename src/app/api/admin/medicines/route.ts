@@ -3,7 +3,7 @@ import { z } from "zod";
 import { verifyRole } from "@/lib/auth/roles";
 import { createAdminClient } from "@/lib/supabase/server";
 
-export const medicineInputSchema = z
+const medicineInputSchema = z
   .object({
     name: z.string().min(2, "Medicine name must be at least 2 characters"),
     slug: z

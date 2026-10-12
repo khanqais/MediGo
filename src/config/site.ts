@@ -12,11 +12,11 @@ export const siteConfig = {
 
   // Statutory Drug License & Compliance
   compliance: {
-    drugLicenseNumber: process.env.NEXT_PUBLIC_DRUG_LICENSE_NO || "DL-20B/21B-MH-MUM-2024-00892",
-    issuingAuthority: "Food and Drug Administration (FDA), Maharashtra",
-    pharmacistAssistanceContact: "+91 1800-266-4321",
-    supportEmail: "care@mediquick.in",
-    registeredEntity: "MediQuick Health Technologies Private Limited",
+    drugLicenseNumber: process.env.NEXT_PUBLIC_DRUG_LICENSE_NO || "PENDING-DRUG-LICENSE-NUMBER",
+    issuingAuthority: process.env.NEXT_PUBLIC_LICENSING_AUTHORITY || "PENDING-LICENSING-AUTHORITY",
+    pharmacistAssistanceContact: process.env.NEXT_PUBLIC_SUPPORT_PHONE || "+91 1800-000-0000",
+    supportEmail: process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "care@example.com",
+    registeredEntity: process.env.NEXT_PUBLIC_REGISTERED_ENTITY || "PENDING-REGISTERED-ENTITY-NAME",
   },
 
   // Mandatory Indian Medical Disclaimer

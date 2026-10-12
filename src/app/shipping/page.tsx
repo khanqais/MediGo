@@ -1,5 +1,5 @@
 import { siteConfig } from "@/config/site";
-import { Truck, Clock, ShieldCheck, MapPin } from "lucide-react";
+import { Truck, Clock, ShieldCheck, MapPin, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 
 export const metadata = {
@@ -20,12 +20,23 @@ export default function ShippingPolicyPage() {
             Shipping & Delivery Policy
           </h1>
           <p className="text-slate-500 text-sm">
-            Last updated: October 4, 2026 • PAN-India medicine delivery and temperature integrity
+            Operational draft template • Requires verification by qualified legal counsel
           </p>
         </div>
 
         {/* Content Card */}
         <div className="bg-white rounded-3xl p-8 sm:p-12 border border-slate-200 shadow-sm space-y-8 text-slate-700 text-sm sm:text-base leading-relaxed">
+          {/* Visible Draft Banner */}
+          <div className="p-4 bg-amber-50 border-2 border-dashed border-amber-300 rounded-2xl flex items-start gap-3 text-amber-900 text-xs sm:text-sm font-medium">
+            <AlertTriangle className="text-amber-600 shrink-0 mt-0.5" size={18} />
+            <div>
+              <span className="font-bold uppercase tracking-wider block text-amber-800 text-xs mb-0.5">
+                Draft - replace with lawyer-reviewed text
+              </span>
+              This document is an operational compliance draft template for {siteConfig.name} ({siteConfig.compliance.registeredEntity}) and must be reviewed and certified by qualified legal counsel prior to formal publication.
+            </div>
+          </div>
+
           <section>
             <h2 className="text-xl font-bold text-slate-900 mb-3">
               1. Delivery Timelines
@@ -36,7 +47,7 @@ export default function ShippingPolicyPage() {
                   <Clock size={16} /> Metro & Tier-1 Cities
                 </div>
                 <p className="text-xs text-slate-600">
-                  Delivered within <strong>24 to 48 hours</strong>. Select metro pincodes qualify for Same-Day or 2-Hour Express Delivery.
+                  Delivered within <strong>24 to 48 hours</strong>. Select urban clusters qualify for Same-Day or 2-Hour Express Delivery.
                 </p>
               </div>
               <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
@@ -44,7 +55,7 @@ export default function ShippingPolicyPage() {
                   <Truck size={16} /> Tier-2, Tier-3 & Regional Pincodes
                 </div>
                 <p className="text-xs text-slate-600">
-                  Delivered within <strong>2 to 4 business days</strong> via authorized pharmaceutical logistics partners.
+                  Delivered within <strong>2 to 4 business days</strong> via certified pharmaceutical logistics providers.
                 </p>
               </div>
             </div>
@@ -55,30 +66,46 @@ export default function ShippingPolicyPage() {
               2. Shipping Charges & Free Delivery Threshold
             </h2>
             <p>
-              We believe in transparent pricing without hidden packing fees:
+              Transparent shipping without hidden packing charges:
             </p>
             <ul className="list-disc list-inside mt-2 space-y-1 text-slate-600">
-              <li>Orders with subtotal <strong>₹{siteConfig.delivery.freeThreshold} and above</strong> qualify for <strong>FREE Delivery</strong> across all serviceable pincodes.</li>
-              <li>Orders below ₹{siteConfig.delivery.freeThreshold} incur a nominal delivery fee of <strong>₹{siteConfig.delivery.standardFee}</strong>.</li>
+              <li>Orders with item subtotal of <strong>₹{siteConfig.delivery.freeThreshold} and above</strong> qualify for <strong>FREE Delivery</strong> across all serviceable pincodes.</li>
+              <li>Orders below ₹{siteConfig.delivery.freeThreshold} incur a standard shipping fee of <strong>₹{siteConfig.delivery.standardFee}</strong>.</li>
             </ul>
           </section>
 
           <section>
             <h2 className="text-xl font-bold text-slate-900 mb-3">
-              3. Cold-Chain Packaging & Integrity
+              3. Cold-Chain Packaging & Temperature Integrity
             </h2>
             <p>
-              Temperature-sensitive products (such as insulins, probiotics, eye drops) are dispatched in certified cold-chain insulated packaging with validated ice packs to guarantee product stability throughout transit.
+              Temperature-sensitive pharmaceuticals (such as insulins, vaccines, and biologics) are dispatched in validated cold-chain insulated shipper boxes with ice gel packs to maintain temperatures between 2°C and 8°C throughout transit.
             </p>
           </section>
 
           <section>
             <h2 className="text-xl font-bold text-slate-900 mb-3">
-              4. Prescription Verification Before Dispatch
+              4. Mandatory Prescription Verification Before Dispatch
             </h2>
             <p>
-              Under Indian law, orders containing Schedule H or Schedule H1 prescription medications will only enter dispatch once our registered pharmacists review and approve the attached doctor prescription.
+              Under applicable Indian pharmacy distribution guidelines, orders containing prescription medications will only be released for packaging and transit after our licensed pharmacists review and approve the doctor prescription.
             </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-bold text-slate-900 mb-3">
+              5. Logistics Grievances & Pharmacy Licensing
+            </h2>
+            <p>
+              For shipping delays, transit damages, or logistics queries:
+            </p>
+            <div className="mt-3 p-4 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm space-y-1">
+              <p><strong>Pharmacy Entity:</strong> {siteConfig.compliance.registeredEntity}</p>
+              <p><strong>Drug License No:</strong> {siteConfig.compliance.drugLicenseNumber}</p>
+              <p><strong>Licensing Authority:</strong> {siteConfig.compliance.issuingAuthority}</p>
+              <p><strong>Support Email:</strong> {siteConfig.compliance.supportEmail}</p>
+              <p><strong>Assistance Helpline:</strong> {siteConfig.compliance.pharmacistAssistanceContact}</p>
+            </div>
           </section>
 
           <div className="pt-6 border-t border-slate-100 flex flex-wrap gap-4 justify-between items-center text-xs text-slate-500">

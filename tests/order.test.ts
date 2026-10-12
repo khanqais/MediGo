@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { POST, VALID_TRANSITIONS } from "../src/app/api/admin/orders/[id]/status/route";
+import { POST } from "../src/app/api/admin/orders/[id]/status/route";
+import { VALID_TRANSITIONS } from "../src/lib/order-status";
 import { DbOrderStatus } from "../src/types/order";
 
 let mockRole: string = "admin";

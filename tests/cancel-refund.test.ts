@@ -54,7 +54,7 @@ function makeRequest(orderId: string): Request {
   });
 }
 
-describe("Order Cancel - Refund Safety", () => {
+describe("Order Cancel - Refund Safety with Dedicated Refunds Table", () => {
   const user = { id: "user-123" };
   const onlineOrder = {
     id: "order-abc",
@@ -77,8 +77,8 @@ describe("Order Cancel - Refund Safety", () => {
     mockGetUser.mockResolvedValue({ data: { user }, error: null });
   });
 
-  it("1. Razorpay failure: leaves order un-cancelled and removes pending refund lock", async () => {
-    let paymentCallCount = 0;
+  it("1. Razorpay failure: leaves order un-cancelled and removes pending refund lock from refunds table", async () => {
+    let refundCallCount = 0;
     const deleteBuilder = createChainableBuilder({ id: "pending-ref-id" });
 
     mockFrom.mockImplementation((table: string) => {
@@ -86,20 +86,19 @@ describe("Order Cancel - Refund Safety", () => {
         return createChainableBuilder(onlineOrder);
       }
       if (table === "payments") {
-        paymentCallCount++;
-        if (paymentCallCount === 1) {
-          // Fetch SUCCESS payment
-          return createChainableBuilder(successPayment);
-        }
-        if (paymentCallCount === 2) {
-          // Check existing refund: none
+        return createChainableBuilder(successPayment);
+      }
+      if (table === "refunds") {
+        refundCallCount++;
+        if (refundCallCount === 1) {
+          // Check existing refund in refunds table: none
           return createChainableBuilder(null, { code: "PGRST116" });
         }
-        if (paymentCallCount === 3) {
-          // Insert PENDING_REFUND
+        if (refundCallCount === 2) {
+          // Insert PENDING lock row into refunds table
           return createChainableBuilder({ id: "pending-ref-id" });
         }
-        // Cleanup delete
+        // Cleanup delete from refunds table
         return deleteBuilder;
       }
       return createChainableBuilder(null);
@@ -117,32 +116,28 @@ describe("Order Cancel - Refund Safety", () => {
 
     // Must NOT have called the DB cancel RPC
     expect(mockRpc).not.toHaveBeenCalled();
-    // Must have deleted the pending refund lock
+    // Must have deleted the pending refund lock from refunds table
     expect(deleteBuilder.delete).toHaveBeenCalled();
   });
 
-  it("2. Double click: detects in-flight or existing refund and does not call Razorpay twice", async () => {
+  it("2. Double click: detects in-flight PENDING refund in refunds table and returns 409 without calling Razorpay", async () => {
     const existingRefundRecord = {
       id: "ref-rec-already-exists",
-      status: "PENDING_REFUND",
-      razorpay_signature: null,
+      status: "PENDING",
+      razorpay_refund_id: null,
+      created_at: new Date().toISOString(),
     };
 
-    let paymentCallCount = 0;
     mockFrom.mockImplementation((table: string) => {
       if (table === "orders") {
         return createChainableBuilder(onlineOrder);
       }
       if (table === "payments") {
-        paymentCallCount++;
-        if (paymentCallCount === 1) {
-          return createChainableBuilder(successPayment);
-        }
-        if (paymentCallCount === 2) {
-          // Found existing PENDING_REFUND from first click!
-          return createChainableBuilder(existingRefundRecord);
-        }
-        return createChainableBuilder({ id: "updated" });
+        return createChainableBuilder(successPayment);
+      }
+      if (table === "refunds") {
+        // Found existing PENDING refund in refunds table
+        return createChainableBuilder(existingRefundRecord);
       }
       return createChainableBuilder(null);
     });
@@ -160,29 +155,23 @@ describe("Order Cancel - Refund Safety", () => {
   });
 
   it("3. DB failure after refund: recovers on subsequent retry without calling Razorpay again", async () => {
-    // Scenario: Razorpay refund succeeded earlier, but DB cancel crashed.
-    // Database has an existing REFUNDED record with signature 'rfnd_existing_777'.
     const completedRefundRecord = {
       id: "ref-rec-done",
       status: "REFUNDED",
-      razorpay_signature: "rfnd_existing_777",
+      razorpay_refund_id: "rfnd_existing_777",
+      created_at: new Date().toISOString(),
     };
 
-    let paymentCallCount = 0;
     mockFrom.mockImplementation((table: string) => {
       if (table === "orders") {
         return createChainableBuilder(onlineOrder);
       }
       if (table === "payments") {
-        paymentCallCount++;
-        if (paymentCallCount === 1) {
-          return createChainableBuilder(successPayment);
-        }
-        if (paymentCallCount === 2) {
-          // Found existing REFUNDED record!
-          return createChainableBuilder(completedRefundRecord);
-        }
-        return createChainableBuilder({});
+        return createChainableBuilder(successPayment);
+      }
+      if (table === "refunds") {
+        // Found existing REFUNDED record in refunds table
+        return createChainableBuilder(completedRefundRecord);
       }
       return createChainableBuilder(null);
     });
@@ -204,37 +193,7 @@ describe("Order Cancel - Refund Safety", () => {
     }));
   });
 
-    it("5. Stale PENDING_REFUND is cleared and retry occurs", async () => {
-    const existingStaleRefundRecord = {
-      id: "ref-rec-stale",
-      status: "PENDING_REFUND",
-      razorpay_signature: null,
-      created_at: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
-    };
-    let paymentCallCount = 0;
-    const deleteBuilder = createChainableBuilder({ id: "ref-rec-stale" });
-    mockFrom.mockImplementation((table) => {
-      if (table === "orders") return createChainableBuilder(onlineOrder);
-      if (table === "payments") {
-        paymentCallCount++;
-        if (paymentCallCount === 1) return createChainableBuilder(successPayment);
-        if (paymentCallCount === 2) return createChainableBuilder(existingStaleRefundRecord);
-        if (paymentCallCount === 3) return deleteBuilder;
-        if (paymentCallCount === 4) return createChainableBuilder({ id: "new-pending-ref" });
-        return createChainableBuilder({ id: "updated" });
-      }
-      return createChainableBuilder(null);
-    });
-    mockFetchMultipleRefund.mockResolvedValue({ items: [] });
-    mockRefund.mockResolvedValue({ id: "rfnd_new_success" });
-    mockRpc.mockResolvedValue({ data: { success: true }, error: null });
-    const res = await POST(makeRequest("order-abc"), { params: { id: "order-abc" } });
-    expect(res.status).toBe(200);
-    expect(deleteBuilder.delete).toHaveBeenCalled();
-    expect(mockRefund).toHaveBeenCalled();
-  });
-
-it("4. COD orders: cancel directly without Razorpay calls", async () => {
+  it("4. COD orders: cancel directly without Razorpay calls", async () => {
     const codOrder = {
       ...onlineOrder,
       payment_method: "COD",
@@ -245,8 +204,155 @@ it("4. COD orders: cancel directly without Razorpay calls", async () => {
       if (table === "orders") return createChainableBuilder(codOrder);
       return createChainableBuilder(null);
     });
+    mockRpc.mockResolvedValue({ data: { success: true }, error: null });
 
-  
-});
+    const res = await POST(makeRequest("order-abc"), { params: { id: "order-abc" } });
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.success).toBe(true);
+    expect(mockRefund).not.toHaveBeenCalled();
+    expect(mockRpc).toHaveBeenCalledWith("process_order_status_update", expect.objectContaining({
+      p_new_status: "CANCELLED",
+    }));
+  });
 
+  it("5. Stale PENDING refund in refunds table (> 5 mins) is cleared and retry occurs", async () => {
+    const existingStaleRefundRecord = {
+      id: "ref-rec-stale",
+      status: "PENDING",
+      razorpay_refund_id: null,
+      created_at: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+    };
+    let refundCallCount = 0;
+    const deleteBuilder = createChainableBuilder({ id: "ref-rec-stale" });
+    const updateRefundBuilder = createChainableBuilder({ id: "ref-rec-stale" });
+    const updatePaymentBuilder = createChainableBuilder({ id: "pay-1" });
+
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "orders") return createChainableBuilder(onlineOrder);
+      if (table === "payments") {
+        return createChainableBuilder(successPayment);
+      }
+      if (table === "refunds") {
+        refundCallCount++;
+        if (refundCallCount === 1) return createChainableBuilder(existingStaleRefundRecord);
+        if (refundCallCount === 2) return deleteBuilder;
+        if (refundCallCount === 3) return createChainableBuilder({ id: "new-pending-ref" });
+        return updateRefundBuilder;
+      }
+      return createChainableBuilder(null);
+    });
+
+    mockFetchMultipleRefund.mockResolvedValue({ items: [] });
+    mockRefund.mockResolvedValue({ id: "rfnd_new_success" });
+    mockRpc.mockResolvedValue({ data: { success: true }, error: null });
+
+    const res = await POST(makeRequest("order-abc"), { params: { id: "order-abc" } });
+    expect(res.status).toBe(200);
+    expect(deleteBuilder.delete).toHaveBeenCalled();
+    expect(mockRefund).toHaveBeenCalled();
+  });
+
+  it("6. Concurrent race: unique constraint violation 23505 on refunds insert returns 409 Conflict", async () => {
+    let refundCallCount = 0;
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "orders") {
+        return createChainableBuilder(onlineOrder);
+      }
+      if (table === "payments") {
+        return createChainableBuilder(successPayment);
+      }
+      if (table === "refunds") {
+        refundCallCount++;
+        if (refundCallCount === 1) {
+          // No existing refund record found when queried
+          return createChainableBuilder(null, { code: "PGRST116" });
+        }
+        if (refundCallCount === 2) {
+          // Concurrent race: insert fails with 23505 on refunds.razorpay_payment_id
+          return createChainableBuilder(null, {
+            code: "23505",
+            message: "duplicate key value violates unique constraint \"refunds_razorpay_payment_id_key\"",
+          });
+        }
+      }
+      return createChainableBuilder(null);
+    });
+
+    const res = await POST(makeRequest("order-abc"), { params: { id: "order-abc" } });
+    expect(res.status).toBe(409);
+    const json = await res.json();
+    expect(json.error).toContain("Refund is in progress. Please retry shortly.");
+    expect(mockRefund).not.toHaveBeenCalled();
+    expect(mockRpc).not.toHaveBeenCalled();
+  });
+
+  it("7. Successful refund flow: updates both refunds record and original payment row", async () => {
+    let refundCallCount = 0;
+    let paymentCallCount = 0;
+    const updateRefundBuilder = createChainableBuilder({ id: "ref-1", status: "REFUNDED" });
+    const updatePaymentBuilder = createChainableBuilder({ id: "pay-1", status: "REFUNDED" });
+
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "orders") return createChainableBuilder(onlineOrder);
+      if (table === "payments") {
+        paymentCallCount++;
+        if (paymentCallCount === 1) return createChainableBuilder(successPayment);
+        return updatePaymentBuilder;
+      }
+      if (table === "refunds") {
+        refundCallCount++;
+        if (refundCallCount === 1) return createChainableBuilder(null, { code: "PGRST116" });
+        if (refundCallCount === 2) return createChainableBuilder({ id: "ref-1" });
+        return updateRefundBuilder;
+      }
+      return createChainableBuilder(null);
+    });
+
+    mockFetchMultipleRefund.mockResolvedValue({ items: [] });
+    mockRefund.mockResolvedValue({ id: "rfnd_success_123" });
+    mockRpc.mockResolvedValue({ data: { success: true }, error: null });
+
+    const res = await POST(makeRequest("order-abc"), { params: { id: "order-abc" } });
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.success).toBe(true);
+
+    expect(updateRefundBuilder.update).toHaveBeenCalledWith(expect.objectContaining({
+      status: "REFUNDED",
+      razorpay_refund_id: "rfnd_success_123",
+    }));
+
+    expect(updatePaymentBuilder.update).toHaveBeenCalledWith(expect.objectContaining({
+      status: "REFUNDED",
+    }));
+  });
+
+  it("8. Refund update error: returns 500 when refunds table update fails after gateway refund", async () => {
+    let refundCallCount = 0;
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "orders") return createChainableBuilder(onlineOrder);
+      if (table === "payments") return createChainableBuilder(successPayment);
+      if (table === "refunds") {
+        refundCallCount++;
+        if (refundCallCount === 1) return createChainableBuilder(null, { code: "PGRST116" });
+        if (refundCallCount === 2) return createChainableBuilder({ id: "ref-1" });
+        // update fails
+        const failingUpdate = {
+          update: vi.fn(() => failingUpdate),
+          eq: vi.fn().mockResolvedValue({ data: null, error: { message: "db write failed" } }),
+        };
+        return failingUpdate;
+      }
+      return createChainableBuilder(null);
+    });
+
+    mockFetchMultipleRefund.mockResolvedValue({ items: [] });
+    mockRefund.mockResolvedValue({ id: "rfnd_gateway_ok" });
+
+    const res = await POST(makeRequest("order-abc"), { params: { id: "order-abc" } });
+    expect(res.status).toBe(500);
+    const json = await res.json();
+    expect(json.error).toContain("failed to update record");
+  });
 });

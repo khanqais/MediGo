@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
 import { Medicine } from "@/types/medicine";
 import { FREE_DELIVERY_THRESHOLD, STANDARD_DELIVERY_FEE } from "@/config/site";
 
@@ -102,6 +102,21 @@ export const useCartStore = create<CartState>()(
     }),
     {
       name: "medigo-cart",
+      storage: createJSONStorage(() => {
+        if (typeof window !== "undefined" && window.localStorage) {
+          return window.localStorage;
+        }
+        let mem: Record<string, string> = {};
+        return {
+          getItem: (key: string) => mem[key] || null,
+          setItem: (key: string, value: string) => {
+            mem[key] = value;
+          },
+          removeItem: (key: string) => {
+            delete mem[key];
+          },
+        };
+      }),
     }
   )
 );

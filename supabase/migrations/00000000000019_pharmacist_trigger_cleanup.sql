@@ -1,4 +1,4 @@
-﻿-- Drop the older overlapping trigger and function from migration 11
+-- Drop the older overlapping trigger and function from migration 11
 DROP TRIGGER IF EXISTS check_pharmacist_price_change ON public.medicines;
 DROP FUNCTION IF EXISTS public.prevent_pharmacist_price_change();
 
@@ -8,7 +8,7 @@ RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $BODY
+AS $$
 DECLARE
     v_uid UUID;
     v_role TEXT;
@@ -34,4 +34,4 @@ BEGIN
     END IF;
     RETURN NEW;
 END;
-$BODY;
+$$;

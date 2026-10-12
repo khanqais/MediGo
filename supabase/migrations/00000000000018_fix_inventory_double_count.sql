@@ -1,4 +1,4 @@
-﻿-- Drop the explicit legacy inventory update since migration 09's trigger handles it
+-- Drop the explicit legacy inventory update since migration 09's trigger handles it
 CREATE OR REPLACE FUNCTION public.create_order_transaction(
     p_user_id UUID,
     p_address_snapshot JSONB,
@@ -18,7 +18,7 @@ CREATE OR REPLACE FUNCTION public.create_order_transaction(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-AS $BODY
+AS $$
 DECLARE
     v_order_id UUID;
     v_order_record RECORD;
@@ -198,7 +198,7 @@ BEGIN
     SELECT * INTO v_order_record FROM public.orders WHERE id = v_order_id;
     RETURN to_jsonb(v_order_record);
 END;
-$BODY;
+$$;
 
 REVOKE EXECUTE ON FUNCTION public.create_order_transaction(UUID, JSONB, DECIMAL, DECIMAL, DECIMAL, DECIMAL, DECIMAL, TEXT, TEXT, TEXT, UUID, UUID, DECIMAL, JSONB) FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION public.create_order_transaction(UUID, JSONB, DECIMAL, DECIMAL, DECIMAL, DECIMAL, DECIMAL, TEXT, TEXT, TEXT, UUID, UUID, DECIMAL, JSONB) FROM authenticated;
@@ -208,7 +208,7 @@ CREATE OR REPLACE FUNCTION public.restore_order_stock(p_order_id UUID)
 RETURNS BOOLEAN
 LANGUAGE plpgsql
 SECURITY DEFINER
-AS $BODY
+AS $$
 DECLARE
     v_item RECORD;
     v_order RECORD;
@@ -242,4 +242,4 @@ BEGIN
 
     RETURN TRUE;
 END;
-$BODY;
+$$;

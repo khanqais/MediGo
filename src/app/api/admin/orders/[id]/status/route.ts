@@ -3,18 +3,7 @@ import { z } from "zod";
 import { verifyRole } from "@/lib/auth/roles";
 import { createAdminClient } from "@/lib/supabase/server";
 import { DbOrderStatus } from "@/types/order";
-
-export const VALID_TRANSITIONS: Record<DbOrderStatus, DbOrderStatus[]> = {
-  PENDING: ["CONFIRMED", "CANCELLED"],
-  PENDING_PRESCRIPTION_APPROVAL: ["CONFIRMED", "CANCELLED"],
-  CONFIRMED: ["PROCESSING", "PACKED", "CANCELLED"],
-  PROCESSING: ["PACKED", "CANCELLED"],
-  PACKED: ["SHIPPED", "CANCELLED"],
-  SHIPPED: ["OUT_FOR_DELIVERY", "CANCELLED"],
-  OUT_FOR_DELIVERY: ["DELIVERED", "CANCELLED"],
-  DELIVERED: [], // Terminal
-  CANCELLED: [], // Terminal
-};
+import { VALID_TRANSITIONS } from "@/lib/order-status";
 
 const updateStatusSchema = z.object({
   status: z.enum([

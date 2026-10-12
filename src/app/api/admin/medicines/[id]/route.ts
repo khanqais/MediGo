@@ -27,6 +27,8 @@ const medicineUpdateSchema = z
     imageUrl: z.string().optional().default(""),
     images: z.array(z.string()).optional().default([]),
     isActive: z.boolean().default(true),
+    prescriptionRequired: z.boolean().optional(),
+    prescription_required: z.boolean().optional(),
   })
   .refine((data) => data.price <= data.mrp, {
     message: "Selling price cannot exceed MRP",
@@ -96,7 +98,7 @@ export async function PUT(
     // Check slug uniqueness against other medicines
     const { data: existingMed } = await adminClient
       .from("medicines")
-      .select("id, slug, mrp, price, drug_schedule, is_active, composition, manufacturer")
+      .select("id, slug, mrp, price, drug_schedule, prescription_required, is_active, composition, manufacturer")
       .eq("id", medicineId)
       .single();
 
@@ -112,20 +114,52 @@ export async function PUT(
     }
 
     if (auth!.role === "pharmacist") {
+      // Allowlist check: Pharmacists may ONLY change non-restricted fields.
+      // Restricted set: price, mrp, drug_schedule, prescription_required, is_active, composition, manufacturer
+      const rawPrescriptionRequired =
+        body.prescriptionRequired ?? body.prescription_required;
+
+      const isPriceChanged = Number(existingMed.price) !== Number(d.price);
+      const isMrpChanged = Number(existingMed.mrp) !== Number(d.mrp);
+      const isScheduleChanged = existingMed.drug_schedule !== d.drugSchedule;
+      const isActiveChanged = existingMed.is_active !== d.isActive;
+      const isCompositionChanged = existingMed.composition !== d.composition;
+      const isManufacturerChanged =
+        (existingMed.manufacturer || "") !== (d.manufacturer || "");
+      const isPrescriptionRequiredChanged =
+        rawPrescriptionRequired !== undefined &&
+        rawPrescriptionRequired !== existingMed.prescription_required;
+
       if (
-        Number(existingMed.mrp) !== d.mrp ||
-        Number(existingMed.price) !== d.price ||
-        existingMed.drug_schedule !== d.drugSchedule ||
-        existingMed.is_active !== d.isActive ||
-        existingMed.composition !== d.composition ||
-        existingMed.manufacturer !== d.manufacturer
+        isPriceChanged ||
+        isMrpChanged ||
+        isScheduleChanged ||
+        isActiveChanged ||
+        isCompositionChanged ||
+        isManufacturerChanged ||
+        isPrescriptionRequiredChanged
       ) {
-        return NextResponse.json({ error: "Pharmacists cannot change restricted fields (MRP, Price, Schedule, Active, Composition, Manufacturer)" }, { status: 403 });
+        return NextResponse.json(
+          {
+            error:
+              "Pharmacists cannot change restricted fields (price, mrp, drug_schedule, prescription_required, is_active, composition, manufacturer)",
+          },
+          { status: 403 }
+        );
       }
     }
 
-    const prescriptionRequired = d.drugSchedule === "H" || d.drugSchedule === "H1" || d.drugSchedule === "X";
-    const discountPercentage = d.mrp > 0 ? Math.round(((d.mrp - d.price) / d.mrp) * 100) : 0;
+    const isPharmacist = auth!.role === "pharmacist";
+    const prescriptionRequired = isPharmacist
+      ? existingMed.prescription_required
+      : (d.prescriptionRequired ?? (d.drugSchedule === "H" || d.drugSchedule === "H1" || d.drugSchedule === "X"));
+    const mrp = isPharmacist ? Number(existingMed.mrp) : d.mrp;
+    const price = isPharmacist ? Number(existingMed.price) : d.price;
+    const drugSchedule = isPharmacist ? existingMed.drug_schedule : d.drugSchedule;
+    const isActive = isPharmacist ? existingMed.is_active : d.isActive;
+    const composition = isPharmacist ? existingMed.composition : d.composition;
+    const manufacturer = isPharmacist ? existingMed.manufacturer : (d.manufacturer || null);
+    const discountPercentage = mrp > 0 ? Math.round(((mrp - price) / mrp) * 100) : 0;
 
     // 1. Update medicine record
     const { data: updatedMed, error: updateError } = await adminClient
@@ -135,14 +169,14 @@ export async function PUT(
         slug: d.slug,
         brand: d.brand,
         generic_name: d.genericName || null,
-        composition: d.composition,
+        composition,
         category_id: d.categoryId || null,
-        mrp: d.mrp,
-        price: d.price,
+        mrp,
+        price,
         discount_percentage: discountPercentage,
-        drug_schedule: d.drugSchedule,
+        drug_schedule: drugSchedule,
         prescription_required: prescriptionRequired,
-        manufacturer: d.manufacturer || null,
+        manufacturer,
         pack_size: d.packSize || null,
         dosage: d.dosage || null,
         description: d.description || null,
@@ -150,7 +184,7 @@ export async function PUT(
         warnings: d.warnings || null,
         image_url: d.imageUrl || null,
         images: d.images.length > 0 ? d.images : d.imageUrl ? [d.imageUrl] : [],
-        is_active: d.isActive,
+        is_active: isActive,
         updated_at: new Date().toISOString(),
       })
       .eq("id", medicineId)

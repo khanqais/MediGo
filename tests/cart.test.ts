@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, beforeAll } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // Provide mock localStorage for Node environment so zustand persist works seamlessly
 const storageMock = (() => {
@@ -17,7 +17,8 @@ const storageMock = (() => {
   };
 })();
 
-Object.defineProperty(globalThis, "localStorage", { value: storageMock, writable: true }); Object.defineProperty(globalThis, "window", { value: { localStorage: storageMock }, writable: true });
+vi.stubGlobal("localStorage", storageMock);
+vi.stubGlobal("window", { localStorage: storageMock });
 
 import { useCartStore } from '../src/store/cartStore';
 import { FREE_DELIVERY_THRESHOLD, STANDARD_DELIVERY_FEE } from '../src/config/site';

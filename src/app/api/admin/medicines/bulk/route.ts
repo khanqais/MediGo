@@ -3,7 +3,7 @@ import { z } from "zod";
 import { verifyRole } from "@/lib/auth/roles";
 import { createAdminClient } from "@/lib/supabase/server";
 
-export interface RowValidationError {
+interface RowValidationError {
   row: number;
   name?: string;
   errors: string[];

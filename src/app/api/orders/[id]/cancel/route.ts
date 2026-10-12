@@ -96,57 +96,107 @@ export async function POST(
         );
       }
 
-      // 3b. Check for existing refund record (idempotency gate)
+      // 3b. Check for existing refund record in dedicated refunds table (idempotency gate)
       const { data: existingRefund } = await adminClient
-        .from("payments")
-        .select("id, status, razorpay_signature, created_at")
+        .from("refunds")
+        .select("id, status, razorpay_refund_id, created_at")
         .eq("order_id", orderId)
-        .in("status", ["REFUNDED", "PENDING_REFUND"])
+        .in("status", ["REFUNDED", "PENDING"])
         .limit(1)
         .single();
 
-            let shouldCreateNewLock = !existingRefund;
+      let shouldCreateNewLock = !existingRefund;
 
       if (existingRefund) {
         if (existingRefund.status === "REFUNDED") {
-          refundId = existingRefund.razorpay_signature;
+          refundId = existingRefund.razorpay_refund_id;
           updatedPaymentStatus = "REFUNDED";
           refundMessage = " Refund already processed.";
         } else {
           const recoveredRefundId = await findExistingRazorpayRefund(payment.razorpay_payment_id);
           if (recoveredRefundId) {
-            await adminClient.from("payments").update({ status: "REFUNDED", razorpay_signature: recoveredRefundId, updated_at: new Date().toISOString() }).eq("id", existingRefund.id);
+            const { error: updateRefErr } = await adminClient
+              .from("refunds")
+              .update({
+                status: "REFUNDED",
+                razorpay_refund_id: recoveredRefundId,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", existingRefund.id);
+
+            if (updateRefErr) {
+              console.error("Failed to update recovered refund record:", updateRefErr);
+              return NextResponse.json(
+                { error: "Failed to update refund record" },
+                { status: 500 }
+              );
+            }
+
+            const { error: updatePayErr } = await adminClient
+              .from("payments")
+              .update({
+                status: "REFUNDED",
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", payment.id);
+
+            if (updatePayErr) {
+              console.error("Failed to update payment status on recovery:", updatePayErr);
+              return NextResponse.json(
+                { error: "Failed to update payment status" },
+                { status: 500 }
+              );
+            }
+
             refundId = recoveredRefundId;
             updatedPaymentStatus = "REFUNDED";
             refundMessage = " Refund recovered and completed.";
           } else {
             const createdTime = new Date(existingRefund.created_at).getTime();
             if (Date.now() - createdTime > 5 * 60 * 1000) {
-              await adminClient.from("payments").delete().eq("id", existingRefund.id);
+              const { error: delErr } = await adminClient.from("refunds").delete().eq("id", existingRefund.id);
+              if (delErr) {
+                console.error("Failed to delete stale refund lock:", delErr);
+              }
               shouldCreateNewLock = true;
             } else {
-              return NextResponse.json({ error: "Refund is in progress. Please retry shortly." }, { status: 409 });
+              return NextResponse.json(
+                { error: "Refund is in progress. Please retry shortly." },
+                { status: 409 }
+              );
             }
           }
         }
       }
 
       if (shouldCreateNewLock) {
-        // 3c. No existing refund — create a PENDING_REFUND lock record BEFORE calling Razorpay
+        // 3c. No existing refund — create a PENDING lock record in refunds table BEFORE calling Razorpay
         const { data: refundRecord, error: insertErr } = await adminClient
-          .from("payments")
+          .from("refunds")
           .insert({
             order_id: orderId,
-            razorpay_order_id: null,
+            payment_id: payment.id,
             razorpay_payment_id: payment.razorpay_payment_id,
-            razorpay_signature: null,
+            razorpay_refund_id: null,
             amount: payment.amount,
-            status: "PENDING_REFUND",
+            status: "PENDING",
           })
           .select("id")
           .single();
 
         if (insertErr || !refundRecord) {
+          // Check for unique index violation (Postgres error code 23505)
+          if (
+            insertErr?.code === "23505" ||
+            insertErr?.message?.includes("duplicate key") ||
+            insertErr?.message?.includes("unique")
+          ) {
+            return NextResponse.json(
+              { error: "Refund is in progress. Please retry shortly." },
+              { status: 409 }
+            );
+          }
+
           console.error("Failed to create refund lock record:", insertErr);
           return NextResponse.json(
             { error: "Failed to initiate refund lock. Please retry." },
@@ -174,7 +224,7 @@ export async function POST(
           // Razorpay API failed — clean up the lock record, leave order un-cancelled
           console.error("Razorpay refund error:", refundError);
           await adminClient
-            .from("payments")
+            .from("refunds")
             .delete()
             .eq("id", refundRecord.id);
 
@@ -190,7 +240,7 @@ export async function POST(
 
         if (!refundId) {
           await adminClient
-            .from("payments")
+            .from("refunds")
             .delete()
             .eq("id", refundRecord.id);
 
@@ -200,23 +250,40 @@ export async function POST(
           );
         }
 
-        // 3f. Mark refund record and original payment as REFUNDED
-        await adminClient
-          .from("payments")
+        // 3f. Mark refund record as REFUNDED and CHECK error
+        const { error: updateRefundErr } = await adminClient
+          .from("refunds")
           .update({
             status: "REFUNDED",
-            razorpay_signature: refundId,
+            razorpay_refund_id: refundId,
             updated_at: new Date().toISOString(),
           })
           .eq("id", refundRecord.id);
 
-        await adminClient
+        if (updateRefundErr) {
+          console.error("Failed to update refund record:", updateRefundErr);
+          return NextResponse.json(
+            { error: "Refund processed with gateway but failed to update record. Please contact support." },
+            { status: 500 }
+          );
+        }
+
+        // 3g. Update original payment row to REFUNDED only after refund succeeds, and CHECK error
+        const { error: updatePaymentErr } = await adminClient
           .from("payments")
           .update({
             status: "REFUNDED",
             updated_at: new Date().toISOString(),
           })
           .eq("id", payment.id);
+
+        if (updatePaymentErr) {
+          console.error("Failed to update payment record:", updatePaymentErr);
+          return NextResponse.json(
+            { error: "Refund processed with gateway but failed to update payment. Please contact support." },
+            { status: 500 }
+          );
+        }
 
         updatedPaymentStatus = "REFUNDED";
         refundMessage = ` Full refund of ₹${order.total_amount} has been initiated.`;

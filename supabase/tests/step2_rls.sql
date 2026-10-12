@@ -1,14 +1,14 @@
-﻿BEGIN;
+BEGIN;
 
-SELECT plan(8);
+SELECT plan(10);
 
 -- Setup fake auth context
-CREATE OR REPLACE FUNCTION set_auth(p_role text, p_user_id uuid) RETURNS void AS $BODY
+CREATE OR REPLACE FUNCTION set_auth(p_role text, p_user_id uuid) RETURNS void AS $$
 BEGIN
     PERFORM set_config('role', p_role, true);
     PERFORM set_config('request.jwt.claims', format('{"sub": "%s", "role": "%s"}', p_user_id, p_role), true);
 END;
-$BODY LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 -- 1. Create test users
 INSERT INTO auth.users (id, email) VALUES
@@ -89,12 +89,22 @@ SELECT lives_ok(
     'UPDATE public.medicines SET description = ''Updated by pharma'' WHERE id = ''99999999-9999-9999-9999-999999999999''',
     'Pharmacist can update other medicine fields'
 );
+SELECT results_eq(
+    'SELECT description FROM public.medicines WHERE id = ''99999999-9999-9999-9999-999999999999''',
+    ARRAY['Updated by pharma'::text],
+    'Pharmacist update actually modified the description row'
+);
 
 -- Test 8: Admin can update price
 SELECT set_auth('authenticated', '22222222-2222-2222-2222-222222222222');
 SELECT lives_ok(
     'UPDATE public.medicines SET price = 90 WHERE id = ''99999999-9999-9999-9999-999999999999''',
     'Admin can update price'
+);
+SELECT results_eq(
+    'SELECT price FROM public.medicines WHERE id = ''99999999-9999-9999-9999-999999999999''',
+    ARRAY[90::numeric],
+    'Admin update actually modified the price row'
 );
 
 SELECT * FROM finish();

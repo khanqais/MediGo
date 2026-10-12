@@ -118,6 +118,23 @@ export default function Footer() {
           </div>
         </div>
 
+        {/* Non-Production Compliance Default Warning */}
+        {process.env.NODE_ENV !== "production" &&
+          (siteConfig.compliance.drugLicenseNumber.includes("PENDING") ||
+            siteConfig.compliance.registeredEntity.includes("PENDING") ||
+            siteConfig.compliance.issuingAuthority.includes("PENDING")) && (
+            <div className="mb-6 p-4 bg-amber-950/90 border border-amber-600 rounded-2xl flex items-start gap-3 text-xs text-amber-200">
+              <AlertTriangle size={18} className="text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <strong className="block text-amber-300 font-bold mb-1 uppercase tracking-wider text-[11px]">
+                  Non-Production Warning: Placeholder Licence Credentials Active
+                </strong>
+                The platform is using placeholder regulatory credentials (<span className="font-mono text-amber-100">{siteConfig.compliance.drugLicenseNumber}</span> / <span className="font-mono text-amber-100">{siteConfig.compliance.registeredEntity}</span>).
+                Configure <code className="font-mono text-amber-300">NEXT_PUBLIC_DRUG_LICENSE_NO</code>, <code className="font-mono text-amber-300">NEXT_PUBLIC_LICENSING_AUTHORITY</code>, and <code className="font-mono text-amber-300">NEXT_PUBLIC_REGISTERED_ENTITY</code> in your environment before serving production traffic.
+              </div>
+            </div>
+          )}
+
         {/* Bottom Bar */}
         <div className="border-t border-slate-800 pt-6 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-slate-400">
           <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-center sm:text-left">

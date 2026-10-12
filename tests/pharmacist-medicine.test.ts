@@ -135,6 +135,49 @@ describe("Pharmacist Medicine Restrictions on PUT /api/admin/medicines/[id]", ()
     expect(json.error).toMatch(/Pharmacists cannot change restricted fields/);
   });
 
+  it("Pharmacist changing prescription_required returns 403", async () => {
+    currentRole = "pharmacist";
+    mockFrom.mockReturnValue(createChainableBuilder(existingMed));
+
+    const req = new NextRequest("http://localhost/api/admin/medicines/med1", {
+      method: "PUT",
+      body: JSON.stringify({
+        ...existingMed,
+        prescriptionRequired: true, // Changed from false
+        drugSchedule: "OTC",
+        price: 80,
+        isActive: true,
+        manufacturer: "GSK",
+      }),
+    });
+
+    const res = await PUT(req, { params: { id: "med1" } });
+    expect(res.status).toBe(403);
+    const json = await res.json();
+    expect(json.error).toMatch(/Pharmacists cannot change restricted fields/);
+  });
+
+  it("Pharmacist changing manufacturer returns 403", async () => {
+    currentRole = "pharmacist";
+    mockFrom.mockReturnValue(createChainableBuilder(existingMed));
+
+    const req = new NextRequest("http://localhost/api/admin/medicines/med1", {
+      method: "PUT",
+      body: JSON.stringify({
+        ...existingMed,
+        manufacturer: "Modified Manufacturer Ltd", // Changed from GSK
+        drugSchedule: "OTC",
+        price: 80,
+        isActive: true,
+      }),
+    });
+
+    const res = await PUT(req, { params: { id: "med1" } });
+    expect(res.status).toBe(403);
+    const json = await res.json();
+    expect(json.error).toMatch(/Pharmacists cannot change restricted fields/);
+  });
+
   it("Admin changing price, MRP, isActive, composition, manufacturer and drug_schedule succeeds with 200", async () => {
     currentRole = "admin";
     const updatedMed = {

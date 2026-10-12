@@ -1,4 +1,4 @@
-﻿BEGIN;
+BEGIN;
 SELECT plan(9);
 
 -- Setup test user
@@ -42,7 +42,7 @@ SELECT is(
 );
 
 -- 2. Create order via transaction (Medicines A and B)
-DO $BODY
+DO $$
 DECLARE
     v_order JSONB;
 BEGIN
@@ -58,7 +58,7 @@ BEGIN
         )
     );
     PERFORM set_config('test.last_order_id', v_order->>'id', true);
-END $BODY;
+END $$;
 
 -- Test 2: Check stock after order for Med A
 SELECT is(
