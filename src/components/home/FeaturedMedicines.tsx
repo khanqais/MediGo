@@ -30,7 +30,7 @@ export default async function FeaturedMedicines() {
     drugSchedule: med.drug_schedule || (med.prescription_required ? "H" : "OTC"),
     category: med.categories?.slug || "general",
     imageUrl: med.image_url || "",
-    stock: med.inventory?.[0]?.stock_quantity ?? 50,
+    stock: (Array.isArray(med.inventory) ? med.inventory[0]?.stock_quantity : (med.inventory as any)?.stock_quantity) ?? 50,
     rating: null,
     reviewsCount: 0,
     description: med.description || "",

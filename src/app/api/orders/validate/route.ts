@@ -89,8 +89,9 @@ export async function POST(request: Request) {
         hasPrescriptionItems = true;
       }
 
-      const inv = medicine.inventory?.[0] || { stock_quantity: 0, reserved_quantity: 0 };
-      const availableStock = Math.max(0, inv.stock_quantity - inv.reserved_quantity);
+      const rawInv = medicine.inventory as any;
+      const inv = Array.isArray(rawInv) ? rawInv[0] : rawInv;
+      const availableStock = Math.max(0, (inv?.stock_quantity || 0) - (inv?.reserved_quantity || 0));
 
       if (item.quantity > availableStock) {
         return NextResponse.json({ 

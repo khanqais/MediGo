@@ -71,7 +71,7 @@ export async function GET(request: Request) {
       drugSchedule: med.drug_schedule || (med.prescription_required ? "H" : "OTC"),
       category: med.categories?.slug || "",
       imageUrl: med.image_url || "",
-      stock: med.inventory?.[0]?.stock_quantity || 0,
+      stock: (Array.isArray(med.inventory) ? med.inventory[0]?.stock_quantity : (med.inventory as any)?.stock_quantity) || 0,
       rating: null,
       reviewsCount: 0,
       description: med.description || "",
