@@ -15,7 +15,7 @@ import {
   ShieldCheck,
   Package
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuthStore } from "@/store/authStore";
 
 const NAV_ITEMS = [
@@ -56,8 +56,13 @@ export default function AdminSidebar() {
   const router = useRouter();
   const { profile, logout } = useAuthStore();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
-  const currentRole = profile?.role || "pharmacist";
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const currentRole = mounted && profile?.role ? profile.role : "pharmacist";
 
   const handleLogout = async () => {
     await logout();
@@ -133,16 +138,16 @@ export default function AdminSidebar() {
         {/* User Card */}
         <div className="p-4 mx-3 my-3 rounded-xl bg-slate-800/60 border border-slate-800 flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold text-sm">
-            {profile?.full_name ? profile.full_name.charAt(0).toUpperCase() : "U"}
+            {mounted && profile?.full_name ? profile.full_name.charAt(0).toUpperCase() : "U"}
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-white truncate">
-              {profile?.full_name || "Staff Member"}
+              {mounted && profile?.full_name ? profile.full_name : "Staff Member"}
             </p>
             <div className="flex items-center gap-1.5 mt-0.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-xs text-emerald-400 capitalize font-medium">
-                {currentRole}
+                {mounted ? currentRole : "pharmacist"}
               </span>
             </div>
           </div>

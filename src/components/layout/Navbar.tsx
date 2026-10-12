@@ -16,6 +16,7 @@ export default function Navbar() {
 
   const { isAuthenticated, profile } = useAuthStore();
 
+  const [mounted, setMounted] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryPrefix, setCategoryPrefix] = useState("All");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -26,6 +27,10 @@ export default function Navbar() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   
   useEffect(() => {
     setHighlightedIndex(-1);
@@ -244,7 +249,7 @@ export default function Navbar() {
           </Link>
 
           {/* Staff Portal Link if Admin or Pharmacist */}
-          {isAuthenticated && (profile?.role === "admin" || profile?.role === "pharmacist") && (
+          {mounted && isAuthenticated && (profile?.role === "admin" || profile?.role === "pharmacist") && (
             <Link
               href="/admin"
               className="hidden md:flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-full transition shadow-xs"
@@ -255,7 +260,7 @@ export default function Navbar() {
           )}
 
           {/* User Account / Sign In */}
-          {isAuthenticated ? (
+          {mounted && isAuthenticated ? (
             <Link
               href="/profile"
               className="hidden sm:flex items-center gap-2 text-sm font-semibold text-slate-700 hover:text-primary px-3 py-2 rounded-xl hover:bg-slate-50 transition"
@@ -281,7 +286,7 @@ export default function Navbar() {
           >
             <ShoppingBag size={20} className="text-primary stroke-[2.25]" />
             <span className="hidden sm:inline text-xs font-bold">Cart</span>
-            {cartCount > 0 && (
+            {mounted && cartCount > 0 && (
               <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-black text-white bg-accent rounded-full min-w-[20px] h-5 shadow-xs">
                 {cartCount}
               </span>
@@ -314,7 +319,7 @@ export default function Navbar() {
               <MapPin size={16} className="text-primary" />
               <span>Deliver to: <strong>{selectedCity}</strong></span>
             </div>
-            {isAuthenticated ? (
+            {mounted && isAuthenticated ? (
               <Link href="/profile" onClick={() => setMobileMenuOpen(false)} className="text-xs font-bold text-primary">
                 My Account ({profile?.full_name ? profile.full_name.split(" ")[0] : "Profile"})
               </Link>
@@ -337,7 +342,7 @@ export default function Navbar() {
             <Link href="/orders" onClick={() => setMobileMenuOpen(false)} className="p-2 bg-slate-50 rounded-lg hover:bg-green-50">
               📦 Track Orders
             </Link>
-            {isAuthenticated && (profile?.role === "admin" || profile?.role === "pharmacist") && (
+            {mounted && isAuthenticated && (profile?.role === "admin" || profile?.role === "pharmacist") && (
               <Link href="/admin" onClick={() => setMobileMenuOpen(false)} className="p-2 bg-emerald-50 text-emerald-800 font-semibold rounded-lg hover:bg-emerald-100 col-span-2">
                 🛡️ {profile.role === "admin" ? "Admin Portal" : "Pharmacist Portal"}
               </Link>

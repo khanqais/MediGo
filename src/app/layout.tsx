@@ -2,12 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import Providers from "@/components/providers";
-import TopBanner from "@/components/layout/TopBanner";
-import Navbar from "@/components/layout/Navbar";
-import SubNav from "@/components/layout/SubNav";
-import MobileNav from "@/components/layout/MobileNav";
-import Footer from "@/components/layout/Footer";
-import CartDrawer from "@/components/cart/CartDrawer";
+import StoreLayout from "@/components/layout/StoreLayout";
 
 const inter = Inter({ 
   subsets: ["latin"],
@@ -34,15 +29,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.variable} ${plusJakarta.variable}`} suppressHydrationWarning>
-      <body className={`${inter.className} min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-primary/20 selection:text-primary-dark pb-16 md:pb-0`}>
+      <body className={`${inter.className} min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-primary/20 selection:text-primary-dark`}>
         <Providers>
-          <TopBanner />
-          <Navbar />
-          <SubNav />
-          <CartDrawer />
-          <main className="flex-1">{children}</main>
-          <Footer />
-          <MobileNav />
+          <StoreLayout>{children}</StoreLayout>
         </Providers>
       </body>
     </html>
