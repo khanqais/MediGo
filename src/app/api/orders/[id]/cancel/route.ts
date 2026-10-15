@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import Razorpay from "razorpay";
+import { renderStatusUpdate, renderRefundInitiated, sendEmailSafely } from "@/lib/email";
 
 /**
  * Customer order cancellation with idempotent refund safety.
@@ -312,6 +313,43 @@ export async function POST(
         { error: "Conflict: Order status was modified by another request." },
         { status: 409 }
       );
+    }
+
+    // Non-fatal transactional email dispatch
+    if (user.email) {
+      if (refundId || updatedPaymentStatus === "REFUNDED") {
+        const refundEmail = renderRefundInitiated({
+          id: orderId,
+          amount: order.total_amount,
+          refundId: refundId || undefined,
+        });
+        sendEmailSafely({
+          orderId,
+          recipient: user.email,
+          template: "refund_initiated",
+          subject: refundEmail.subject,
+          html: refundEmail.html,
+          text: refundEmail.text,
+        }).catch((err) => {
+          console.error("Non-fatal refund email error:", err);
+        });
+      }
+
+      const cancelEmail = renderStatusUpdate("CANCELLED", {
+        id: orderId,
+        notes: "Cancelled by customer before packaging",
+        total_amount: order.total_amount,
+      });
+      sendEmailSafely({
+        orderId,
+        recipient: user.email,
+        template: "status_update_CANCELLED",
+        subject: cancelEmail.subject,
+        html: cancelEmail.html,
+        text: cancelEmail.text,
+      }).catch((err) => {
+        console.error("Non-fatal cancel status email error:", err);
+      });
     }
 
     return NextResponse.json({

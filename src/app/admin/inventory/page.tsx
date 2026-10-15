@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { Search, Plus, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
+import { getStock } from "@/lib/inventory";
 
 interface Batch {
   id: string;
@@ -188,8 +189,8 @@ export default function InventoryPage() {
               >
                 <div className="font-bold text-slate-900 text-sm">{med.name}</div>
                 <div className="text-xs text-slate-500 mb-1">{med.brand}</div>
-                <div className={`text-xs font-bold ${med.inventory?.stock_quantity <= med.inventory?.reorder_level ? 'text-rose-600' : 'text-emerald-600'}`}>
-                  {med.inventory?.stock_quantity || 0} in stock
+                <div className={`text-xs font-bold ${getStock(med) <= ((med.inventory as any)?.reorder_level ?? 10) ? 'text-rose-600' : 'text-emerald-600'}`}>
+                  {getStock(med)} in stock
                 </div>
               </button>
             ))
@@ -229,7 +230,7 @@ export default function InventoryPage() {
             <div className="flex justify-between items-start mb-6">
               <div>
                 <h2 className="text-xl font-bold text-slate-900">{selectedMed.name}</h2>
-                <p className="text-sm text-slate-500">Total Stock: {selectedMed.inventory?.stock_quantity || 0}</p>
+                <p className="text-sm text-slate-500">Total Stock: {getStock(selectedMed)}</p>
               </div>
               <button
                 onClick={() => setAddBatchModalOpen(true)}

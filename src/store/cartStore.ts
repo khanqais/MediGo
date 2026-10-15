@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { Medicine } from "@/types/medicine";
 import { FREE_DELIVERY_THRESHOLD, STANDARD_DELIVERY_FEE } from "@/config/site";
+import { isOtcMedicine, isOtcOnlyMode } from "@/lib/sales-mode";
 
 export interface CartItem {
   medicine: Medicine;
@@ -23,6 +24,7 @@ interface CartState {
   removeItem: (medicineId: string) => void;
   updateQuantity: (medicineId: string, quantity: number) => void;
   clearCart: () => void;
+  removeNonOtcItems: () => number;
   setCoupon: (coupon: { code: string; discount: number }) => void;
   clearCoupon: () => void;
   cartTotal: () => number;
@@ -43,6 +45,9 @@ export const useCartStore = create<CartState>()(
       openDrawer: () => set({ isDrawerOpen: true }),
       closeDrawer: () => set({ isDrawerOpen: false }),
       addItem: (medicine, quantity = 1) => {
+        if (isOtcOnlyMode() && !isOtcMedicine(medicine)) {
+          return;
+        }
         const items = get().items;
         const existingItem = items.find((item) => item.medicine.id === medicine.id);
         if (existingItem) {
@@ -70,6 +75,14 @@ export const useCartStore = create<CartState>()(
         });
       },
       clearCart: () => set({ items: [], appliedCoupon: null }),
+      removeNonOtcItems: () => {
+        if (!isOtcOnlyMode()) return 0;
+        const items = get().items;
+        const kept = items.filter((item) => isOtcMedicine(item.medicine));
+        const removed = items.length - kept.length;
+        if (removed > 0) set({ items: kept });
+        return removed;
+      },
       setCoupon: (coupon) => set({ appliedCoupon: coupon }),
       clearCoupon: () => set({ appliedCoupon: null }),
       cartTotal: () => {

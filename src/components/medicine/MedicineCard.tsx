@@ -7,6 +7,7 @@ import { useCartStore } from "@/store/cartStore";
 import { ShoppingCart, Check, FileText } from "lucide-react";
 import RatingStars from "@/components/shared/RatingStars";
 import { toast } from "sonner";
+import { isOtcMedicine, isOtcOnlyMode, OTC_ONLY_STOREFRONT_LABEL } from "@/lib/sales-mode";
 
 export default function MedicineCard({ medicine }: { medicine: Medicine }) {
   const addItem = useCartStore((state) => state.addItem);
@@ -113,6 +114,13 @@ export default function MedicineCard({ medicine }: { medicine: Medicine }) {
               title="Schedule X drugs cannot be sold online as per Indian law"
             >
               In-Store Retail Only
+            </button>
+          ) : isOtcOnlyMode() && !isOtcMedicine(medicine) ? (
+            <button
+              disabled
+              className="w-full mt-2.5 py-2.5 rounded-full font-bold text-xs bg-slate-100 text-slate-500 border border-slate-200 cursor-not-allowed"
+            >
+              {OTC_ONLY_STOREFRONT_LABEL}
             </button>
           ) : (
             <button 

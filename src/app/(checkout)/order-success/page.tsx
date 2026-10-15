@@ -24,24 +24,29 @@ function OrderSuccessContent() {
   const orderId = searchParams.get("order_id");
 
   const [order, setOrder] = useState<any | null>(null);
-  const [loading, setLoading] = useState(Boolean(orderId));
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!orderId) {
       setLoading(false);
+      setError("No order ID was provided. Please check your order history.");
       return;
     }
 
     async function fetchOrder() {
       try {
         setLoading(true);
+        setError(null);
         const res = await fetch(`/api/orders/${orderId}`);
         const json = await res.json();
-        if (res.ok && json.success) {
+        if (res.ok && json.success && json.data) {
           setOrder(json.data);
+        } else {
+          setError(json.error || "Order not found or does not belong to your account.");
         }
       } catch {
-        console.error("Failed to load order for confirmation screen");
+        setError("Network error communicating with order service.");
       } finally {
         setLoading(false);
       }
@@ -50,7 +55,41 @@ function OrderSuccessContent() {
     fetchOrder();
   }, [orderId]);
 
-  const isPendingApproval = order?.status === "PENDING_PRESCRIPTION_APPROVAL";
+  if (loading) {
+    return (
+      <div className="bg-slate-50 min-h-screen py-12 px-4 flex items-center justify-center">
+        <div className="max-w-md w-full bg-white p-8 rounded-3xl shadow-lg border border-slate-200 text-center">
+          <RefreshCw size={28} className="animate-spin mx-auto text-primary mb-3" />
+          <h2 className="text-lg font-bold text-slate-900">Retrieving Order Confirmation</h2>
+          <p className="text-xs text-slate-500 mt-1">Verifying order ownership and loading details...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !order) {
+    return (
+      <div className="bg-slate-50 min-h-screen py-12 px-4 flex items-center justify-center">
+        <div className="max-w-md w-full bg-white p-8 rounded-3xl shadow-lg border border-slate-200 text-center">
+          <AlertTriangle size={36} className="mx-auto text-amber-500 mb-3" />
+          <h2 className="text-lg font-bold text-slate-900">Order Verification Failed</h2>
+          <p className="text-xs text-slate-500 mt-2 mb-6 leading-relaxed">
+            {error || "We could not find this order under your account."}
+          </p>
+          <div className="flex flex-col sm:flex-row gap-2 justify-center">
+            <Link href="/orders" className="px-4 py-2.5 bg-primary text-white text-xs font-bold rounded-xl shadow-xs">
+              Go to My Orders
+            </Link>
+            <Link href="/medicines" className="px-4 py-2.5 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-200">
+              Browse Medicines
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const isPendingApproval = order.status === "PENDING_PRESCRIPTION_APPROVAL";
 
   return (
     <div className="bg-slate-50 min-h-screen py-12 px-4 flex items-center justify-center">
@@ -95,47 +134,38 @@ function OrderSuccessContent() {
             : "Thank you for choosing MediQuick. Your generic medicine package has been scheduled for certified WHO-GMP packaging and fast courier dispatch."}
         </p>
 
-        {/* Order Details Box */}
-        {loading ? (
-          <div className="bg-slate-50 rounded-2xl p-6 mb-8 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
-            <RefreshCw size={14} className="animate-spin text-primary" />
-            <span>Loading real order details...</span>
+        {/* Real Order Details Box (strictly verified data, no placeholders) */}
+        <div className="bg-slate-50 rounded-2xl p-5 mb-8 text-left border border-slate-200 space-y-3">
+          <div className="flex justify-between items-center pb-3 border-b border-slate-200 text-xs sm:text-sm">
+            <span className="text-slate-500 font-medium">Order ID:</span>
+            <span className="font-mono font-bold text-slate-900 bg-white px-2.5 py-1 rounded-lg border border-slate-200">
+              #{order.id.slice(0, 8).toUpperCase()}
+            </span>
           </div>
-        ) : (
-          <div className="bg-slate-50 rounded-2xl p-5 mb-8 text-left border border-slate-200 space-y-3">
-            <div className="flex justify-between items-center pb-3 border-b border-slate-200 text-xs sm:text-sm">
-              <span className="text-slate-500 font-medium">Order ID:</span>
-              <span className="font-mono font-bold text-slate-900 bg-white px-2.5 py-1 rounded-lg border border-slate-200">
-                #{order?.id ? order.id.slice(0, 8).toUpperCase() : orderId ? orderId.slice(0, 8).toUpperCase() : "CONFIRMED"}
-              </span>
-            </div>
 
-            <div className="flex justify-between items-center text-xs sm:text-sm">
-              <span className="text-slate-500 font-medium">Order Date:</span>
-              <span className="font-semibold text-slate-800">
-                {order?.created_at ? new Date(order.created_at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "Today"}
-              </span>
-            </div>
-
-            {order?.total_amount && (
-              <div className="flex justify-between items-center text-xs sm:text-sm">
-                <span className="text-slate-500 font-medium">Total Amount:</span>
-                <span className="font-bold text-slate-900">₹{order.total_amount} ({order.payment_method})</span>
-              </div>
-            )}
-
-            <div className="flex justify-between items-center text-xs sm:text-sm">
-              <span className="text-slate-500 font-medium">Current Status:</span>
-              <span className={`font-bold px-2 py-0.5 rounded text-xs ${
-                isPendingApproval 
-                  ? "bg-amber-100 text-amber-800" 
-                  : "bg-emerald-100 text-emerald-800"
-              }`}>
-                {order?.status ? order.status.replace(/_/g, " ") : "CONFIRMED"}
-              </span>
-            </div>
+          <div className="flex justify-between items-center text-xs sm:text-sm">
+            <span className="text-slate-500 font-medium">Order Date:</span>
+            <span className="font-semibold text-slate-800">
+              {new Date(order.created_at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
+            </span>
           </div>
-        )}
+
+          <div className="flex justify-between items-center text-xs sm:text-sm">
+            <span className="text-slate-500 font-medium">Total Amount:</span>
+            <span className="font-bold text-slate-900">₹{order.total_amount} ({order.payment_method})</span>
+          </div>
+
+          <div className="flex justify-between items-center text-xs sm:text-sm">
+            <span className="text-slate-500 font-medium">Current Status:</span>
+            <span className={`font-bold px-2 py-0.5 rounded text-xs ${
+              isPendingApproval 
+                ? "bg-amber-100 text-amber-800" 
+                : "bg-emerald-100 text-emerald-800"
+            }`}>
+              {order.status.replace(/_/g, " ")}
+            </span>
+          </div>
+        </div>
 
         {/* Live Delivery Progress Tracker */}
         <div className="mb-8 text-left">

@@ -17,6 +17,7 @@ export const siteConfig = {
     pharmacistAssistanceContact: process.env.NEXT_PUBLIC_SUPPORT_PHONE || "+91 1800-000-0000",
     supportEmail: process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "care@example.com",
     registeredEntity: process.env.NEXT_PUBLIC_REGISTERED_ENTITY || "PENDING-REGISTERED-ENTITY-NAME",
+    gstNumber: process.env.NEXT_PUBLIC_GST_NUMBER || "PENDING-GST-NUMBER",
   },
 
   // Mandatory Indian Medical Disclaimer

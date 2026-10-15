@@ -124,7 +124,7 @@ export default function AdminDashboardPage() {
               <span>₹</span>
               <span>{loading ? "..." : (data?.todayRevenue ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}</span>
             </h3>
-            <p className="text-xs text-slate-400 mt-1">Confirmed & paid orders</p>
+            <p className="text-xs text-slate-400 mt-1">Delivered orders, plus paid online orders</p>
           </div>
           <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
             <IndianRupee size={24} />

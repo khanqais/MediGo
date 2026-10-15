@@ -1,8 +1,15 @@
 import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 
 export function createClient() {
   const cookieStore = cookies()
+  let authHeader: string | undefined
+  try {
+    const headersList = headers()
+    authHeader = headersList.get('authorization') ?? undefined
+  } catch {
+    // outside of request scope
+  }
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -23,6 +30,9 @@ export function createClient() {
             // user sessions.
           }
         },
+      },
+      global: {
+        headers: authHeader ? { Authorization: authHeader } : undefined,
       },
     }
   )

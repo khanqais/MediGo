@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
 import { FREE_DELIVERY_THRESHOLD, STANDARD_DELIVERY_FEE } from "@/config/site";
+import { getAvailableStock } from "@/lib/inventory";
+import { findBlockedOtcOnlyItem, otcOnlyRejection } from "@/lib/sales-mode";
 
 const validateSchema = z.object({
   items: z.array(
@@ -89,9 +91,12 @@ export async function POST(request: Request) {
         hasPrescriptionItems = true;
       }
 
-      const rawInv = medicine.inventory as any;
-      const inv = Array.isArray(rawInv) ? rawInv[0] : rawInv;
-      const availableStock = Math.max(0, (inv?.stock_quantity || 0) - (inv?.reserved_quantity || 0));
+      const blocked = findBlockedOtcOnlyItem([medicine]);
+      if (blocked) {
+        return NextResponse.json({ error: otcOnlyRejection(blocked.name) }, { status: 400 });
+      }
+
+      const availableStock = getAvailableStock(medicine);
 
       if (item.quantity > availableStock) {
         return NextResponse.json({ 

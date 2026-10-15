@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { Medicine } from "@/types/medicine";
+import { getStock } from "@/lib/inventory";
 import { z } from "zod";
 
 const paramsSchema = z.object({
@@ -53,7 +54,7 @@ export async function GET(
       drugSchedule: med.drug_schedule || (med.prescription_required ? "H" : "OTC"),
       category: med.categories?.slug || "",
       imageUrl: med.image_url || "",
-      stock: (Array.isArray(med.inventory) ? med.inventory[0]?.stock_quantity : (med.inventory as any)?.stock_quantity) || 0,
+      stock: getStock(med),
       rating: null,
       reviewsCount: 0,
       description: med.description || "",
@@ -100,7 +101,7 @@ export async function GET(
           drugSchedule: s.drug_schedule || (s.prescription_required ? "H" : "OTC"),
           category: Array.isArray(s.categories) ? s.categories[0]?.slug : (s.categories?.slug || ""),
           imageUrl: s.image_url || "",
-          stock: Array.isArray(s.inventory) ? (s.inventory[0]?.stock_quantity || 0) : 0,
+          stock: getStock(s),
           packSize: s.pack_size || "",
           dosage: s.dosage || "",
           manufacturer: s.manufacturer || "",

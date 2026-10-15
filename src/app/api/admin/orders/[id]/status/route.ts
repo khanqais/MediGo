@@ -4,6 +4,7 @@ import { verifyRole } from "@/lib/auth/roles";
 import { createAdminClient } from "@/lib/supabase/server";
 import { DbOrderStatus } from "@/types/order";
 import { VALID_TRANSITIONS } from "@/lib/order-status";
+import { renderStatusUpdate, sendEmailSafely, SupportedOrderStatus } from "@/lib/email";
 
 const updateStatusSchema = z.object({
   status: z.enum([
@@ -45,7 +46,7 @@ export async function POST(
     // 1. Fetch current order
     const { data: order, error: orderError } = await adminClient
       .from("orders")
-      .select("id, status, payment_method, payment_status, stock_restored")
+      .select("id, user_id, status, payment_method, payment_status, stock_restored")
       .eq("id", orderId)
       .single();
 
@@ -95,6 +96,47 @@ export async function POST(
 
     if (rpcError || !result?.success) {
       return NextResponse.json({ error: "Conflict: Order status was modified by another request." }, { status: 409 });
+    }
+
+    // 4. Safely notify customer via email (never fails status update)
+    const emailStatuses: SupportedOrderStatus[] = [
+      "PACKED",
+      "SHIPPED",
+      "OUT_FOR_DELIVERY",
+      "DELIVERED",
+      "CANCELLED",
+    ];
+    if (emailStatuses.includes(targetStatus as SupportedOrderStatus) && order.user_id) {
+      (async () => {
+        try {
+          const { data: customerProfile } = await adminClient
+            .from("profiles")
+            .select("email")
+            .eq("id", order.user_id)
+            .single();
+
+          if (customerProfile?.email) {
+            const emailContent = renderStatusUpdate(
+              targetStatus as SupportedOrderStatus,
+              {
+                id: orderId,
+                notes: historyNotes,
+              }
+            );
+            await sendEmailSafely({
+              orderId,
+              recipient: customerProfile.email,
+              template: `status_update_${targetStatus}`,
+              subject: emailContent.subject,
+              html: emailContent.html,
+              text: emailContent.text,
+              adminClient,
+            });
+          }
+        } catch (mailErr) {
+          console.error("Non-fatal error in customer status email dispatch:", mailErr);
+        }
+      })();
     }
 
     return NextResponse.json({

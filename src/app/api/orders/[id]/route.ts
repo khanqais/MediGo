@@ -30,6 +30,13 @@ export async function GET(
         payment_status,
         payment_method,
         prescription_id,
+        coupon_id,
+        coupons:coupon_id (
+          id,
+          code,
+          type,
+          value
+        ),
         stock_restored,
         created_at,
         updated_at
@@ -109,10 +116,31 @@ export async function GET(
       }
     }
 
+    // 5. Fetch coupon discount details if coupon used
+    let coupon = null;
+    if (order.coupon_id) {
+      const { data: redemption } = await supabase
+        .from("coupon_redemptions")
+        .select("discount_amount, coupons (code, type, value)")
+        .eq("order_id", params.id)
+        .maybeSingle();
+
+      const couponObj = (order as any).coupons || (redemption as any)?.coupons;
+      if (couponObj) {
+        coupon = {
+          code: couponObj.code,
+          discount: redemption?.discount_amount ?? order.discount,
+          type: couponObj.type,
+          value: couponObj.value,
+        };
+      }
+    }
+
     return NextResponse.json({
       success: true,
       data: {
         ...order,
+        coupon,
         order_items: items || [],
         status_history: statusHistory || [],
         prescription,

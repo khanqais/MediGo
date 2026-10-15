@@ -124,6 +124,19 @@ async function main() {
       if (invError) {
         console.error(`Error upserting inventory for ${med.slug}:`, invError.message);
       }
+
+      // Upsert inventory_batches (required for FEFO order deduction and sellable stock)
+      const nextYear = new Date();
+      nextYear.setFullYear(nextYear.getFullYear() + 2);
+      await supabase
+        .from("inventory_batches")
+        .upsert({
+          medicine_id: medData.id,
+          batch_number: "BATCH-SEED-01",
+          mfg_date: new Date().toISOString().slice(0, 10),
+          expiry_date: nextYear.toISOString().slice(0, 10),
+          quantity: med.stock || 0,
+        }, { onConflict: "medicine_id,batch_number" });
     }
   }
 

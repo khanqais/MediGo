@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Minus, Plus, Trash2, ArrowRight, Truck, ShoppingBag } from "lucide-react";
 import Link from "next/link";
 import { useEffect } from "react";
+import { isOtcMedicine, isOtcOnlyMode, OTC_ONLY_STOREFRONT_LABEL } from "@/lib/sales-mode";
 import { useRouter } from "next/navigation";
 
 export default function CartDrawer() {
@@ -12,7 +13,8 @@ export default function CartDrawer() {
   const { 
     isDrawerOpen, 
     closeDrawer, 
-    items, 
+    items,
+    removeNonOtcItems, 
     updateQuantity, 
     removeItem, 
     subtotal, 
@@ -154,6 +156,11 @@ export default function CartDrawer() {
                           <h4 className="font-bold text-slate-900 text-xs sm:text-sm line-clamp-1">
                             {item.medicine.name}
                           </h4>
+                          {isOtcOnlyMode() && !isOtcMedicine(item.medicine) && (
+                            <p className="text-[10px] font-semibold text-amber-700 mt-0.5">
+                              {OTC_ONLY_STOREFRONT_LABEL}
+                            </p>
+                          )}
                         </div>
                         <button 
                           onClick={() => removeItem(item.medicine.id)}

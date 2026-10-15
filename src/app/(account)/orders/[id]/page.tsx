@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useCartStore } from "@/store/cartStore";
+import { siteConfig } from "@/config/site";
 
 interface OrderItemData {
   id: string;
@@ -65,6 +66,13 @@ interface OrderDetail {
   payment_status: string;
   payment_method: string;
   prescription_id?: string | null;
+  coupon_id?: string | null;
+  coupon?: {
+    code: string;
+    discount: number;
+    type?: string;
+    value?: number;
+  } | null;
   stock_restored?: boolean;
   created_at: string;
   updated_at: string;
@@ -294,23 +302,19 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
   const isPendingApproval = order.status === "PENDING_PRESCRIPTION_APPROVAL";
   const isPaymentPending = order.payment_method === "ONLINE" && (order.payment_status === "PENDING" || order.payment_status === "FAILED") && !isCancelled && !isPendingApproval;
 
-  // Determine current active stepper index
-  let activeStepIndex = 0;
-  if (isCancelled) {
-    activeStepIndex = -1;
-  } else if (order.status === "DELIVERED") {
-    activeStepIndex = 5;
-  } else if (order.status === "SHIPPED" || order.status === "OUT_FOR_DELIVERY") {
-    activeStepIndex = 4;
-  } else if (order.status === "PACKED") {
-    activeStepIndex = 3;
-  } else if (order.status === "CONFIRMED" || order.status === "PROCESSING") {
-    activeStepIndex = 2;
-  } else if (order.status === "PENDING_PRESCRIPTION_APPROVAL") {
-    activeStepIndex = 1;
-  } else {
-    activeStepIndex = 0;
-  }
+  // Build stepper dynamically from status history
+  const hasRxScrutiny = Boolean(order.prescription_id) || order.status_history?.some(h => h.status === "PENDING_PRESCRIPTION_APPROVAL");
+  const orderSteps = [
+    { key: "PENDING", label: "Order Placed" },
+    ...(hasRxScrutiny ? [{ key: "PENDING_PRESCRIPTION_APPROVAL", label: "Rx Scrutiny" }] : []),
+    { key: "CONFIRMED", label: "Confirmed" },
+    { key: "PACKED", label: "Packed" },
+    { key: "SHIPPED", label: "Shipped" },
+    { key: "OUT_FOR_DELIVERY", label: "Out for Delivery" },
+    { key: "DELIVERED", label: "Delivered" },
+  ];
+
+  const cancelledHistory = order.status_history?.find(h => h.status === "CANCELLED");
 
   return (
     <div className="space-y-6">
@@ -387,48 +391,61 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
 
       {/* Stepper / Timeline */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs">
-        <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-6">Live Order Stepper</h2>
+        <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-6">Live Order Stepper (From Status History)</h2>
 
-        {isCancelled ? (
-          <div className="p-4 bg-rose-50 rounded-2xl border border-rose-200 flex items-center gap-3">
+        {isCancelled && (
+          <div className="p-4 bg-rose-50 rounded-2xl border border-rose-200 flex items-center gap-3 mb-6">
             <XCircle className="w-6 h-6 text-rose-600 shrink-0" />
             <div>
-              <p className="font-bold text-sm text-rose-900">Order Cancelled</p>
+              <p className="font-bold text-sm text-rose-900">
+                Order Cancelled {cancelledHistory?.created_at && `• ${new Date(cancelledHistory.created_at).toLocaleString("en-IN")}`}
+              </p>
               <p className="text-xs text-rose-700 mt-0.5">
-                This order was cancelled. Reserved inventory stock has been returned to the pharmacy.
+                {cancelledHistory?.notes || "Order cancelled. Reserved inventory stock has been returned to the pharmacy."}
                 {order.payment_status === "REFUNDED" && " Refund has been initiated to your source payment method."}
               </p>
             </div>
           </div>
-        ) : (
-          <div className="relative">
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
-              {ORDER_STEPS.map((step, idx) => {
-                const isComplete = idx <= activeStepIndex;
-                const isCurrent = idx === activeStepIndex;
-
-                return (
-                  <div key={step.key} className="flex flex-col items-center text-center relative">
-                    <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs transition mb-2 z-10 ${
-                        isCurrent
-                          ? "bg-primary text-white ring-4 ring-green-100"
-                          : isComplete
-                          ? "bg-emerald-600 text-white"
-                          : "bg-slate-100 text-slate-400 border border-slate-200"
-                      }`}
-                    >
-                      {isComplete ? <CheckCircle2 size={18} /> : idx + 1}
-                    </div>
-                    <p className={`text-xs font-bold leading-tight ${isComplete ? "text-slate-900" : "text-slate-400"}`}>
-                      {step.label}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
         )}
+
+        <div className="relative">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
+            {orderSteps.map((step, idx) => {
+              const historyItem = order.status_history?.find(
+                (h) => h.status === step.key
+              );
+              const isCurrent = order.status === step.key;
+              const isComplete = Boolean(historyItem) || isCurrent;
+
+              return (
+                <div key={step.key} className="flex flex-col items-center text-center relative">
+                  <div
+                    className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs transition mb-2 z-10 ${
+                      isCurrent
+                        ? "bg-primary text-white ring-4 ring-green-100"
+                        : isComplete
+                        ? "bg-emerald-600 text-white"
+                        : "bg-slate-100 text-slate-400 border border-slate-200"
+                    }`}
+                  >
+                    {isComplete ? <CheckCircle2 size={18} /> : idx + 1}
+                  </div>
+                  <p className={`text-xs font-bold leading-tight ${isComplete ? "text-slate-900" : "text-slate-400"}`}>
+                    {step.label}
+                  </p>
+                  {historyItem && (
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      {new Date(historyItem.created_at).toLocaleTimeString("en-IN", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
         {/* Audit History Timeline */}
         {order.status_history?.length > 0 && (
@@ -589,12 +606,17 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
               <span>Items Subtotal:</span>
               <span className="font-semibold text-slate-900">₹{order.subtotal}</span>
             </div>
-            {order.discount > 0 && (
+            {order.coupon ? (
+              <div className="flex justify-between text-emerald-600 font-medium">
+                <span>Coupon Applied ({order.coupon.code}):</span>
+                <span>-₹{order.coupon.discount}</span>
+              </div>
+            ) : order.discount > 0 ? (
               <div className="flex justify-between text-emerald-600">
                 <span>Discount Applied:</span>
                 <span>-₹{order.discount}</span>
               </div>
-            )}
+            ) : null}
             <div className="flex justify-between">
               <span>Standard Express Delivery:</span>
               <span>{order.delivery_fee === 0 ? "FREE" : `₹${order.delivery_fee}`}</span>
@@ -636,12 +658,17 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
               {/* Invoice Header */}
               <div className="flex justify-between items-start pb-4 border-b-2 border-slate-800">
                 <div>
-                  <h2 className="text-xl font-black text-slate-900">MediQuick Pharmacy Ltd.</h2>
-                  <p className="text-[11px] text-slate-500 mt-0.5">Licensed Online Retail Chemist &amp; Druggist</p>
+                  <h2 className="text-xl font-black text-slate-900">{siteConfig.compliance.registeredEntity}</h2>
+                  <p className="text-[11px] text-slate-500 mt-0.5">{siteConfig.name} Licensed Online Pharmacy</p>
                   <p className="text-[11px] text-slate-500">
-                    Drug License No: <strong>{process.env.NEXT_PUBLIC_DRUG_LICENSE_NO || "DL-20B/21B-MH-2024-9410"}</strong>
+                    Drug License No: <strong>{siteConfig.compliance.drugLicenseNumber}</strong> ({siteConfig.compliance.issuingAuthority})
                   </p>
-                  <p className="text-[11px] text-slate-500">GSTIN: 27AABCM9410A1Z5</p>
+                  <p className="text-[11px] text-slate-500">
+                    GSTIN: <strong>{siteConfig.compliance.gstNumber}</strong>
+                  </p>
+                  <p className="text-[11px] text-slate-500">
+                    Support: {siteConfig.compliance.pharmacistAssistanceContact} • {siteConfig.compliance.supportEmail}
+                  </p>
                 </div>
                 <div className="text-right">
                   <p className="text-base font-bold text-slate-900">TAX INVOICE</p>
@@ -701,12 +728,17 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                   <span>Subtotal:</span>
                   <span>₹{order.subtotal}</span>
                 </div>
-                {order.discount > 0 && (
+                {order.coupon ? (
+                  <div className="flex justify-between text-emerald-600">
+                    <span>Coupon Discount ({order.coupon.code}):</span>
+                    <span>-₹{order.coupon.discount}</span>
+                  </div>
+                ) : order.discount > 0 ? (
                   <div className="flex justify-between text-emerald-600">
                     <span>Discount:</span>
                     <span>-₹{order.discount}</span>
                   </div>
-                )}
+                ) : null}
                 <div className="flex justify-between">
                   <span>Delivery Charges:</span>
                   <span>{order.delivery_fee === 0 ? "FREE" : `₹${order.delivery_fee}`}</span>

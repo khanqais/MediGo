@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
+import { findBlockedOtcOnlyItem, isOtcOnlyMode, OTC_ONLY_ORDER_ERROR, OTC_ONLY_STOREFRONT_LABEL } from "@/lib/sales-mode";
 
 interface UserPrescription {
   id: string;
@@ -24,7 +25,7 @@ interface UserPrescription {
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { items, clearCart, appliedCoupon } = useCartStore();
+  const { items, clearCart, appliedCoupon, removeNonOtcItems } = useCartStore();
   const supabase = createClient();
   
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -53,6 +54,13 @@ export default function CheckoutPage() {
   const hasPrescriptionItems = items.some(
     (item) => item.medicine.prescriptionRequired || item.medicine.drugSchedule === "H" || item.medicine.drugSchedule === "H1"
   );
+
+  useEffect(() => {
+    const removed = removeNonOtcItems();
+    if (removed > 0) {
+      toast.info(`${OTC_ONLY_STOREFRONT_LABEL}. ${removed} prescription item(s) were removed from your cart.`);
+    }
+  }, [removeNonOtcItems]);
 
   const fetchUserPrescriptions = useCallback(async () => {
     try {
@@ -229,6 +237,13 @@ export default function CheckoutPage() {
   const handlePlaceOrder = async () => {
     setIsProcessing(true);
     try {
+      const blocked = findBlockedOtcOnlyItem(items.map((i) => i.medicine));
+      if (blocked) {
+        toast.error(OTC_ONLY_ORDER_ERROR);
+        setIsProcessing(false);
+        return;
+      }
+
       const method = (paymentMethod === "UPI" || paymentMethod === "CARDS") ? "ONLINE" : "COD";
 
       // 1. Create Order
@@ -353,6 +368,12 @@ export default function CheckoutPage() {
           <span>&gt;</span>
           <span className={step === 3 ? "text-primary" : ""}>3. Payment</span>
         </div>
+
+        {isOtcOnlyMode() && (
+          <p className="text-center text-sm text-amber-700 font-medium mb-6">
+            {OTC_ONLY_STOREFRONT_LABEL}. Only OTC medicines can be checked out.
+          </p>
+        )}
 
         <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
           <AnimatePresence mode="wait">

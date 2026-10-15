@@ -16,8 +16,9 @@ import {
   Sparkles
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { isOtcMedicine, isOtcOnlyMode, OTC_ONLY_STOREFRONT_LABEL } from "@/lib/sales-mode";
 
 export default function CartPage() {
   const { 
@@ -30,9 +31,17 @@ export default function CartPage() {
     total, 
     appliedCoupon, 
     setCoupon, 
-    clearCoupon 
+    clearCoupon,
+    removeNonOtcItems,
   } = useCartStore();
   const [couponCode, setCouponCode] = useState("");
+
+  useEffect(() => {
+    const removed = removeNonOtcItems();
+    if (removed > 0) {
+      toast.info(`${OTC_ONLY_STOREFRONT_LABEL}. ${removed} prescription item(s) were removed from your cart.`);
+    }
+  }, [removeNonOtcItems]);
 
   const cartSubtotal = subtotal();
   const cartSavings = totalSavings();
@@ -107,6 +116,11 @@ export default function CartPage() {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-2xl sm:text-3xl font-black text-slate-900">Shopping Cart</h1>
+            {isOtcOnlyMode() && (
+              <p className="text-xs sm:text-sm text-amber-700 font-medium mt-1">
+                {OTC_ONLY_STOREFRONT_LABEL}. Non-OTC items are removed from checkout.
+              </p>
+            )}
             <p className="text-xs sm:text-sm text-slate-500 font-medium">
               Review your items and proceed to secure checkout
             </p>
@@ -172,6 +186,11 @@ export default function CartPage() {
                           {item.medicine.prescriptionRequired && (
                             <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full mt-1.5 border border-amber-200">
                               <AlertCircle size={11} /> Rx Required
+                            </span>
+                          )}
+                          {isOtcOnlyMode() && !isOtcMedicine(item.medicine) && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-full mt-1.5 border border-slate-200">
+                              {OTC_ONLY_STOREFRONT_LABEL}
                             </span>
                           )}
                         </div>

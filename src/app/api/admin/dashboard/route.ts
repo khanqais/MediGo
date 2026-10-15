@@ -17,7 +17,7 @@ export async function GET(request: Request) {
     // 1. Fetch today's orders
     const { data: todayOrders, error: todayOrdersError } = await adminClient
       .from("orders")
-      .select("id, total_amount, status, payment_status")
+      .select("id, total_amount, status, payment_status, payment_method")
       .gte("created_at", todayIso);
 
     if (todayOrdersError) {
@@ -27,7 +27,11 @@ export async function GET(request: Request) {
     const todayOrdersList = todayOrders || [];
     const todayOrdersCount = todayOrdersList.length;
     const todayRevenue = todayOrdersList
-      .filter((o) => o.status !== "CANCELLED")
+      .filter(
+        (o) =>
+          o.status === "DELIVERED" ||
+          (o.payment_method === "ONLINE" && o.payment_status === "PAID")
+      )
       .reduce((acc, curr) => acc + Number(curr.total_amount || 0), 0);
 
     // 2. Fetch pending prescriptions count

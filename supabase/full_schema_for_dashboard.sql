@@ -2050,298 +2050,635 @@ REVOKE EXECUTE ON FUNCTION public.cleanup_rate_limits() FROM anon;
 
 
 -- Migration: 00000000000018_fix_inventory_double_count.sql
-��- -   D r o p   t h e   e x p l i c i t   l e g a c y   i n v e n t o r y   u p d a t e   s i n c e   m i g r a t i o n   0 9 ' s   t r i g g e r   h a n d l e s   i t 
- C R E A T E   O R   R E P L A C E   F U N C T I O N   p u b l i c . c r e a t e _ o r d e r _ t r a n s a c t i o n ( 
-         p _ u s e r _ i d   U U I D , 
-         p _ a d d r e s s _ s n a p s h o t   J S O N B , 
-         p _ s u b t o t a l   D E C I M A L , 
-         p _ d i s c o u n t   D E C I M A L , 
-         p _ d e l i v e r y _ f e e   D E C I M A L , 
-         p _ t a x   D E C I M A L , 
-         p _ t o t a l _ a m o u n t   D E C I M A L , 
-         p _ s t a t u s   T E X T , 
-         p _ p a y m e n t _ s t a t u s   T E X T , 
-         p _ p a y m e n t _ m e t h o d   T E X T , 
-         p _ p r e s c r i p t i o n _ i d   U U I D , 
-         p _ c o u p o n _ i d   U U I D , 
-         p _ c o u p o n _ d i s c o u n t   D E C I M A L , 
-         p _ i t e m s   J S O N B 
- ) 
- R E T U R N S   J S O N B 
- L A N G U A G E   p l p g s q l 
- S E C U R I T Y   D E F I N E R 
- A S   $ B O D Y 
- D E C L A R E 
-         v _ o r d e r _ i d   U U I D ; 
-         v _ o r d e r _ r e c o r d   R E C O R D ; 
-         v _ i t e m   J S O N B ; 
-         v _ m e d _ i d   U U I D ; 
-         v _ r e q u e s t e d _ q t y   I N T E G E R ; 
-         v _ p r i c e   D E C I M A L ; 
-         v _ m e d _ n a m e   T E X T ; 
-         v _ m e d _ a c t i v e   B O O L E A N ; 
-         v _ m e d _ s c h e d u l e   T E X T ; 
-         
-         v _ b a t c h _ r e c o r d   R E C O R D ; 
-         v _ r e m a i n i n g _ q t y   I N T E G E R ; 
-         v _ d e d u c t _ q t y   I N T E G E R ; 
-         
-         v _ c o u p o n _ r e c o r d   R E C O R D ; 
-         v _ g l o b a l _ r e d e m p t i o n s   I N T E G E R ; 
-         v _ u s e r _ r e d e m p t i o n s   I N T E G E R ; 
-         v _ e x p i r y _ b u f f e r _ d a y s   I N T E G E R ; 
- B E G I N 
-         - -   C o n f i g u r a b l e   e x p i r y   b u f f e r 
-         S E L E C T   C O A L E S C E ( ( v a l u e - > > 0 ) : : I N T E G E R ,   9 0 )   I N T O   v _ e x p i r y _ b u f f e r _ d a y s 
-         F R O M   p u b l i c . a p p _ s e t t i n g s   W H E R E   k e y   =   ' i n v e n t o r y _ e x p i r y _ b u f f e r _ d a y s ' ; 
-         I F   v _ e x p i r y _ b u f f e r _ d a y s   I S   N U L L   T H E N 
-                 v _ e x p i r y _ b u f f e r _ d a y s   : =   9 0 ; 
-         E N D   I F ; 
- 
-         - -   V a l i d a t e   a n d   l o c k   c o u p o n   i f   p r o v i d e d 
-         I F   p _ c o u p o n _ i d   I S   N O T   N U L L   T H E N 
-                 S E L E C T   *   I N T O   v _ c o u p o n _ r e c o r d   F R O M   p u b l i c . c o u p o n s   W H E R E   i d   =   p _ c o u p o n _ i d   F O R   U P D A T E ; 
-                 
-                 I F   N O T   F O U N D   O R   N O T   v _ c o u p o n _ r e c o r d . i s _ a c t i v e   T H E N 
-                         R A I S E   E X C E P T I O N   ' C o u p o n   i s   n o t   v a l i d   o r   i n a c t i v e ' ; 
-                 E N D   I F ; 
- 
-                 I F   v _ c o u p o n _ r e c o r d . v a l i d _ f r o m   I S   N O T   N U L L   A N D   v _ c o u p o n _ r e c o r d . v a l i d _ f r o m   >   N O W ( )   T H E N 
-                         R A I S E   E X C E P T I O N   ' C o u p o n   i s   n o t   v a l i d   y e t ' ; 
-                 E N D   I F ; 
- 
-                 I F   v _ c o u p o n _ r e c o r d . v a l i d _ t o   I S   N O T   N U L L   A N D   v _ c o u p o n _ r e c o r d . v a l i d _ t o   <   N O W ( )   T H E N 
-                         R A I S E   E X C E P T I O N   ' C o u p o n   h a s   e x p i r e d ' ; 
-                 E N D   I F ; 
- 
-                 I F   v _ c o u p o n _ r e c o r d . u s a g e _ l i m i t   I S   N O T   N U L L   T H E N 
-                         S E L E C T   C O U N T ( * )   I N T O   v _ g l o b a l _ r e d e m p t i o n s   F R O M   p u b l i c . c o u p o n _ r e d e m p t i o n s   W H E R E   c o u p o n _ i d   =   p _ c o u p o n _ i d ; 
-                         I F   v _ g l o b a l _ r e d e m p t i o n s   > =   v _ c o u p o n _ r e c o r d . u s a g e _ l i m i t   T H E N 
-                                 R A I S E   E X C E P T I O N   ' C o u p o n   u s a g e   l i m i t   r e a c h e d ' ; 
-                         E N D   I F ; 
-                 E N D   I F ; 
- 
-                 I F   v _ c o u p o n _ r e c o r d . p e r _ u s e r _ l i m i t   I S   N O T   N U L L   T H E N 
-                         S E L E C T   C O U N T ( * )   I N T O   v _ u s e r _ r e d e m p t i o n s   F R O M   p u b l i c . c o u p o n _ r e d e m p t i o n s   W H E R E   c o u p o n _ i d   =   p _ c o u p o n _ i d   A N D   u s e r _ i d   =   p _ u s e r _ i d ; 
-                         I F   v _ u s e r _ r e d e m p t i o n s   > =   v _ c o u p o n _ r e c o r d . p e r _ u s e r _ l i m i t   T H E N 
-                                 R A I S E   E X C E P T I O N   ' P e r - u s e r   c o u p o n   u s a g e   l i m i t   r e a c h e d ' ; 
-                         E N D   I F ; 
-                 E N D   I F ; 
-         E N D   I F ; 
- 
-         - -   1 .   I n s e r t   i n t o   o r d e r s   t a b l e 
-         I N S E R T   I N T O   p u b l i c . o r d e r s   ( 
-                 u s e r _ i d , 
-                 a d d r e s s _ s n a p s h o t , 
-                 s u b t o t a l , 
-                 d i s c o u n t , 
-                 d e l i v e r y _ f e e , 
-                 t a x , 
-                 t o t a l _ a m o u n t , 
-                 s t a t u s , 
-                 p a y m e n t _ s t a t u s , 
-                 p a y m e n t _ m e t h o d , 
-                 p r e s c r i p t i o n _ i d , 
-                 c o u p o n _ i d 
-         )   V A L U E S   ( 
-                 p _ u s e r _ i d , 
-                 p _ a d d r e s s _ s n a p s h o t , 
-                 p _ s u b t o t a l , 
-                 p _ d i s c o u n t , 
-                 p _ d e l i v e r y _ f e e , 
-                 p _ t a x , 
-                 p _ t o t a l _ a m o u n t , 
-                 p _ s t a t u s , 
-                 p _ p a y m e n t _ s t a t u s , 
-                 p _ p a y m e n t _ m e t h o d , 
-                 p _ p r e s c r i p t i o n _ i d , 
-                 p _ c o u p o n _ i d 
-         ) 
-         R E T U R N I N G   i d   I N T O   v _ o r d e r _ i d ; 
- 
-         - -   2 .   P r o c e s s   e a c h   i t e m   a n d   d e d u c t   f r o m   b a t c h e s   ( F E F O ) 
-         F O R   v _ i t e m   I N   S E L E C T   *   F R O M   j s o n b _ a r r a y _ e l e m e n t s ( p _ i t e m s ) 
-         L O O P 
-                 v _ m e d _ i d   : =   ( v _ i t e m - > > ' m e d i c i n e _ i d ' ) : : U U I D ; 
-                 v _ r e q u e s t e d _ q t y   : =   ( v _ i t e m - > > ' q u a n t i t y ' ) : : I N T E G E R ; 
-                 v _ p r i c e   : =   ( v _ i t e m - > > ' p r i c e ' ) : : D E C I M A L ; 
-                 v _ r e m a i n i n g _ q t y   : =   v _ r e q u e s t e d _ q t y ; 
- 
-                 S E L E C T   n a m e ,   i s _ a c t i v e ,   d r u g _ s c h e d u l e   
-                 I N T O   v _ m e d _ n a m e ,   v _ m e d _ a c t i v e ,   v _ m e d _ s c h e d u l e 
-                 F R O M   p u b l i c . m e d i c i n e s   
-                 W H E R E   i d   =   v _ m e d _ i d   F O R   S H A R E ; 
- 
-                 I F   N O T   v _ m e d _ a c t i v e   T H E N 
-                         R A I S E   E X C E P T I O N   ' M e d i c i n e   %   i s   n o   l o n g e r   a c t i v e ' ,   v _ m e d _ n a m e ; 
-                 E N D   I F ; 
-                 
-                 I F   v _ m e d _ s c h e d u l e   =   ' X '   T H E N 
-                         R A I S E   E X C E P T I O N   ' S c h e d u l e   X   d r u g   ( % )   c a n n o t   b e   s o l d   o n l i n e ' ,   v _ m e d _ n a m e ; 
-                 E N D   I F ; 
- 
-                 - -   L o o p   t h r o u g h   a v a i l a b l e   b a t c h e s   i n   F E F O   o r d e r 
-                 F O R   v _ b a t c h _ r e c o r d   I N   
-                         S E L E C T   *   F R O M   p u b l i c . i n v e n t o r y _ b a t c h e s   
-                         W H E R E   m e d i c i n e _ i d   =   v _ m e d _ i d   
-                         A N D   q u a n t i t y   >   0 
-                         A N D   e x p i r y _ d a t e   > =   C U R R E N T _ D A T E   +   ( v _ e x p i r y _ b u f f e r _ d a y s   | |   '   d a y s ' ) : : I N T E R V A L 
-                         O R D E R   B Y   e x p i r y _ d a t e   A S C 
-                         F O R   U P D A T E 
-                 L O O P 
-                         I F   v _ r e m a i n i n g _ q t y   < =   0   T H E N 
-                                 E X I T ; 
-                         E N D   I F ; 
- 
-                         I F   v _ b a t c h _ r e c o r d . q u a n t i t y   > =   v _ r e m a i n i n g _ q t y   T H E N 
-                                 v _ d e d u c t _ q t y   : =   v _ r e m a i n i n g _ q t y ; 
-                         E L S E 
-                                 v _ d e d u c t _ q t y   : =   v _ b a t c h _ r e c o r d . q u a n t i t y ; 
-                         E N D   I F ; 
- 
-                         - -   D e d u c t   f r o m   b a t c h 
-                         U P D A T E   p u b l i c . i n v e n t o r y _ b a t c h e s   
-                         S E T   q u a n t i t y   =   q u a n t i t y   -   v _ d e d u c t _ q t y   
-                         W H E R E   i d   =   v _ b a t c h _ r e c o r d . i d ; 
- 
-                         - -   C r e a t e   o r d e r   i t e m   l i n k e d   t o   t h i s   b a t c h 
-                         I N S E R T   I N T O   p u b l i c . o r d e r _ i t e m s   ( 
-                                 o r d e r _ i d , 
-                                 m e d i c i n e _ i d , 
-                                 q u a n t i t y , 
-                                 p r i c e , 
-                                 t o t a l , 
-                                 b a t c h _ i d 
-                         )   V A L U E S   ( 
-                                 v _ o r d e r _ i d , 
-                                 v _ m e d _ i d , 
-                                 v _ d e d u c t _ q t y , 
-                                 v _ p r i c e , 
-                                 ( v _ d e d u c t _ q t y   *   v _ p r i c e ) , 
-                                 v _ b a t c h _ r e c o r d . i d 
-                         ) ; 
- 
-                         v _ r e m a i n i n g _ q t y   : =   v _ r e m a i n i n g _ q t y   -   v _ d e d u c t _ q t y ; 
-                 E N D   L O O P ; 
- 
-                 I F   v _ r e m a i n i n g _ q t y   >   0   T H E N 
-                         R A I S E   E X C E P T I O N   ' I n s u f f i c i e n t   s e l l a b l e   s t o c k   f o r   m e d i c i n e   % ' ,   v _ m e d _ n a m e ; 
-                 E N D   I F ; 
- 
-                 - -   N o   m a n u a l   U P D A T E   p u b l i c . i n v e n t o r y   h e r e ,   h a n d l e d   b y   s y n c _ i n v e n t o r y _ b a t c h e s _ t r i g g e r 
-         E N D   L O O P ; 
- 
-         - -   4 .   R e c o r d   c o u p o n   r e d e m p t i o n   i f   a n y 
-         I F   p _ c o u p o n _ i d   I S   N O T   N U L L   T H E N 
-                 I N S E R T   I N T O   p u b l i c . c o u p o n _ r e d e m p t i o n s   ( 
-                         c o u p o n _ i d , 
-                         u s e r _ i d , 
-                         o r d e r _ i d , 
-                         d i s c o u n t _ a m o u n t 
-                 )   V A L U E S   ( 
-                         p _ c o u p o n _ i d , 
-                         p _ u s e r _ i d , 
-                         v _ o r d e r _ i d , 
-                         p _ c o u p o n _ d i s c o u n t 
-                 ) ; 
-         E N D   I F ; 
- 
-         - -   5 .   R e t u r n   c r e a t e d   o r d e r   r e c o r d 
-         S E L E C T   *   I N T O   v _ o r d e r _ r e c o r d   F R O M   p u b l i c . o r d e r s   W H E R E   i d   =   v _ o r d e r _ i d ; 
-         R E T U R N   t o _ j s o n b ( v _ o r d e r _ r e c o r d ) ; 
- E N D ; 
- $ B O D Y ; 
- 
- R E V O K E   E X E C U T E   O N   F U N C T I O N   p u b l i c . c r e a t e _ o r d e r _ t r a n s a c t i o n ( U U I D ,   J S O N B ,   D E C I M A L ,   D E C I M A L ,   D E C I M A L ,   D E C I M A L ,   D E C I M A L ,   T E X T ,   T E X T ,   T E X T ,   U U I D ,   U U I D ,   D E C I M A L ,   J S O N B )   F R O M   P U B L I C ; 
- R E V O K E   E X E C U T E   O N   F U N C T I O N   p u b l i c . c r e a t e _ o r d e r _ t r a n s a c t i o n ( U U I D ,   J S O N B ,   D E C I M A L ,   D E C I M A L ,   D E C I M A L ,   D E C I M A L ,   D E C I M A L ,   T E X T ,   T E X T ,   T E X T ,   U U I D ,   U U I D ,   D E C I M A L ,   J S O N B )   F R O M   a u t h e n t i c a t e d ; 
- R E V O K E   E X E C U T E   O N   F U N C T I O N   p u b l i c . c r e a t e _ o r d e r _ t r a n s a c t i o n ( U U I D ,   J S O N B ,   D E C I M A L ,   D E C I M A L ,   D E C I M A L ,   D E C I M A L ,   D E C I M A L ,   T E X T ,   T E X T ,   T E X T ,   U U I D ,   U U I D ,   D E C I M A L ,   J S O N B )   F R O M   a n o n ; 
- 
- C R E A T E   O R   R E P L A C E   F U N C T I O N   p u b l i c . r e s t o r e _ o r d e r _ s t o c k ( p _ o r d e r _ i d   U U I D ) 
- R E T U R N S   B O O L E A N 
- L A N G U A G E   p l p g s q l 
- S E C U R I T Y   D E F I N E R 
- A S   $ B O D Y 
- D E C L A R E 
-         v _ i t e m   R E C O R D ; 
-         v _ o r d e r   R E C O R D ; 
- B E G I N 
-         - -   C h e c k   i d e m p o t e n c y   a n d   l o c k   o r d e r 
-         S E L E C T   *   I N T O   v _ o r d e r   F R O M   p u b l i c . o r d e r s   W H E R E   i d   =   p _ o r d e r _ i d   F O R   U P D A T E ; 
-         
-         I F   N O T   F O U N D   T H E N 
-                 R A I S E   E X C E P T I O N   ' O r d e r   n o t   f o u n d ' ; 
-         E N D   I F ; 
-         
-         I F   v _ o r d e r . s t o c k _ r e s t o r e d _ a t   I S   N O T   N U L L   T H E N 
-                 - -   A l r e a d y   r e s t o r e d ,   p e r f e c t l y   i d e m p o t e n t 
-                 R E T U R N   T R U E ; 
-         E N D   I F ; 
- 
-         F O R   v _ i t e m   I N   
-                 S E L E C T   m e d i c i n e _ i d ,   q u a n t i t y ,   b a t c h _ i d   
-                 F R O M   p u b l i c . o r d e r _ i t e m s   
-                 W H E R E   o r d e r _ i d   =   p _ o r d e r _ i d 
-         L O O P 
-                 I F   v _ i t e m . b a t c h _ i d   I S   N O T   N U L L   T H E N 
-                         U P D A T E   p u b l i c . i n v e n t o r y _ b a t c h e s 
-                         S E T   q u a n t i t y   =   q u a n t i t y   +   v _ i t e m . q u a n t i t y 
-                         W H E R E   i d   =   v _ i t e m . b a t c h _ i d ; 
-                 E N D   I F ; 
-                 - -   N o   m a n u a l   U P D A T E   p u b l i c . i n v e n t o r y   h e r e ,   h a n d l e d   b y   s y n c _ i n v e n t o r y _ b a t c h e s _ t r i g g e r 
-         E N D   L O O P ; 
-         
-         U P D A T E   p u b l i c . o r d e r s   S E T   s t o c k _ r e s t o r e d _ a t   =   N O W ( )   W H E R E   i d   =   p _ o r d e r _ i d ; 
- 
-         R E T U R N   T R U E ; 
- E N D ; 
- $ B O D Y ;  
- 
+-- Drop the explicit legacy inventory update since migration 09's trigger handles it
+CREATE OR REPLACE FUNCTION public.create_order_transaction(
+    p_user_id UUID,
+    p_address_snapshot JSONB,
+    p_subtotal DECIMAL,
+    p_discount DECIMAL,
+    p_delivery_fee DECIMAL,
+    p_tax DECIMAL,
+    p_total_amount DECIMAL,
+    p_status TEXT,
+    p_payment_status TEXT,
+    p_payment_method TEXT,
+    p_prescription_id UUID,
+    p_coupon_id UUID,
+    p_coupon_discount DECIMAL,
+    p_items JSONB
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_order_id UUID;
+    v_order_record RECORD;
+    v_item JSONB;
+    v_med_id UUID;
+    v_requested_qty INTEGER;
+    v_price DECIMAL;
+    v_med_name TEXT;
+    v_med_active BOOLEAN;
+    v_med_schedule TEXT;
+    
+    v_batch_record RECORD;
+    v_remaining_qty INTEGER;
+    v_deduct_qty INTEGER;
+    
+    v_coupon_record RECORD;
+    v_global_redemptions INTEGER;
+    v_user_redemptions INTEGER;
+    v_expiry_buffer_days INTEGER;
+BEGIN
+    -- Configurable expiry buffer
+    SELECT COALESCE((value->>0)::INTEGER, 90) INTO v_expiry_buffer_days
+    FROM public.app_settings WHERE key = 'inventory_expiry_buffer_days';
+    IF v_expiry_buffer_days IS NULL THEN
+        v_expiry_buffer_days := 90;
+    END IF;
+
+    -- Validate and lock coupon if provided
+    IF p_coupon_id IS NOT NULL THEN
+        SELECT * INTO v_coupon_record FROM public.coupons WHERE id = p_coupon_id FOR UPDATE;
+        
+        IF NOT FOUND OR NOT v_coupon_record.is_active THEN
+            RAISE EXCEPTION 'Coupon is not valid or inactive';
+        END IF;
+
+        IF v_coupon_record.valid_from IS NOT NULL AND v_coupon_record.valid_from > NOW() THEN
+            RAISE EXCEPTION 'Coupon is not valid yet';
+        END IF;
+
+        IF v_coupon_record.valid_to IS NOT NULL AND v_coupon_record.valid_to < NOW() THEN
+            RAISE EXCEPTION 'Coupon has expired';
+        END IF;
+
+        IF v_coupon_record.usage_limit IS NOT NULL THEN
+            SELECT COUNT(*) INTO v_global_redemptions FROM public.coupon_redemptions WHERE coupon_id = p_coupon_id;
+            IF v_global_redemptions >= v_coupon_record.usage_limit THEN
+                RAISE EXCEPTION 'Coupon usage limit reached';
+            END IF;
+        END IF;
+
+        IF v_coupon_record.per_user_limit IS NOT NULL THEN
+            SELECT COUNT(*) INTO v_user_redemptions FROM public.coupon_redemptions WHERE coupon_id = p_coupon_id AND user_id = p_user_id;
+            IF v_user_redemptions >= v_coupon_record.per_user_limit THEN
+                RAISE EXCEPTION 'Per-user coupon usage limit reached';
+            END IF;
+        END IF;
+    END IF;
+
+    -- 1. Insert into orders table
+    INSERT INTO public.orders (
+        user_id,
+        address_snapshot,
+        subtotal,
+        discount,
+        delivery_fee,
+        tax,
+        total_amount,
+        status,
+        payment_status,
+        payment_method,
+        prescription_id,
+        coupon_id
+    ) VALUES (
+        p_user_id,
+        p_address_snapshot,
+        p_subtotal,
+        p_discount,
+        p_delivery_fee,
+        p_tax,
+        p_total_amount,
+        p_status,
+        p_payment_status,
+        p_payment_method,
+        p_prescription_id,
+        p_coupon_id
+    )
+    RETURNING id INTO v_order_id;
+
+    -- 2. Process each item and deduct from batches (FEFO)
+    FOR v_item IN SELECT * FROM jsonb_array_elements(p_items)
+    LOOP
+        v_med_id := (v_item->>'medicine_id')::UUID;
+        v_requested_qty := (v_item->>'quantity')::INTEGER;
+        v_price := (v_item->>'price')::DECIMAL;
+        v_remaining_qty := v_requested_qty;
+
+        SELECT name, is_active, drug_schedule 
+        INTO v_med_name, v_med_active, v_med_schedule
+        FROM public.medicines 
+        WHERE id = v_med_id FOR SHARE;
+
+        IF NOT v_med_active THEN
+            RAISE EXCEPTION 'Medicine % is no longer active', v_med_name;
+        END IF;
+        
+        IF v_med_schedule = 'X' THEN
+            RAISE EXCEPTION 'Schedule X drug (%) cannot be sold online', v_med_name;
+        END IF;
+
+        -- Loop through available batches in FEFO order
+        FOR v_batch_record IN 
+            SELECT * FROM public.inventory_batches 
+            WHERE medicine_id = v_med_id 
+            AND quantity > 0
+            AND expiry_date >= CURRENT_DATE + (v_expiry_buffer_days || ' days')::INTERVAL
+            ORDER BY expiry_date ASC
+            FOR UPDATE
+        LOOP
+            IF v_remaining_qty <= 0 THEN
+                EXIT;
+            END IF;
+
+            IF v_batch_record.quantity >= v_remaining_qty THEN
+                v_deduct_qty := v_remaining_qty;
+            ELSE
+                v_deduct_qty := v_batch_record.quantity;
+            END IF;
+
+            -- Deduct from batch
+            UPDATE public.inventory_batches 
+            SET quantity = quantity - v_deduct_qty 
+            WHERE id = v_batch_record.id;
+
+            -- Create order item linked to this batch
+            INSERT INTO public.order_items (
+                order_id,
+                medicine_id,
+                quantity,
+                price,
+                total,
+                batch_id
+            ) VALUES (
+                v_order_id,
+                v_med_id,
+                v_deduct_qty,
+                v_price,
+                (v_deduct_qty * v_price),
+                v_batch_record.id
+            );
+
+            v_remaining_qty := v_remaining_qty - v_deduct_qty;
+        END LOOP;
+
+        IF v_remaining_qty > 0 THEN
+            RAISE EXCEPTION 'Insufficient sellable stock for medicine %', v_med_name;
+        END IF;
+
+        -- No manual UPDATE public.inventory here, handled by sync_inventory_batches_trigger
+    END LOOP;
+
+    -- 4. Record coupon redemption if any
+    IF p_coupon_id IS NOT NULL THEN
+        INSERT INTO public.coupon_redemptions (
+            coupon_id,
+            user_id,
+            order_id,
+            discount_amount
+        ) VALUES (
+            p_coupon_id,
+            p_user_id,
+            v_order_id,
+            p_coupon_discount
+        );
+    END IF;
+
+    -- 5. Return created order record
+    SELECT * INTO v_order_record FROM public.orders WHERE id = v_order_id;
+    RETURN to_jsonb(v_order_record);
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.create_order_transaction(UUID, JSONB, DECIMAL, DECIMAL, DECIMAL, DECIMAL, DECIMAL, TEXT, TEXT, TEXT, UUID, UUID, DECIMAL, JSONB) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.create_order_transaction(UUID, JSONB, DECIMAL, DECIMAL, DECIMAL, DECIMAL, DECIMAL, TEXT, TEXT, TEXT, UUID, UUID, DECIMAL, JSONB) FROM authenticated;
+REVOKE EXECUTE ON FUNCTION public.create_order_transaction(UUID, JSONB, DECIMAL, DECIMAL, DECIMAL, DECIMAL, DECIMAL, TEXT, TEXT, TEXT, UUID, UUID, DECIMAL, JSONB) FROM anon;
+
+CREATE OR REPLACE FUNCTION public.restore_order_stock(p_order_id UUID)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_item RECORD;
+    v_order RECORD;
+BEGIN
+    -- Check idempotency and lock order
+    SELECT * INTO v_order FROM public.orders WHERE id = p_order_id FOR UPDATE;
+    
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Order not found';
+    END IF;
+    
+    IF v_order.stock_restored_at IS NOT NULL THEN
+        -- Already restored, perfectly idempotent
+        RETURN TRUE;
+    END IF;
+
+    FOR v_item IN 
+        SELECT medicine_id, quantity, batch_id 
+        FROM public.order_items 
+        WHERE order_id = p_order_id
+    LOOP
+        IF v_item.batch_id IS NOT NULL THEN
+            UPDATE public.inventory_batches
+            SET quantity = quantity + v_item.quantity
+            WHERE id = v_item.batch_id;
+        END IF;
+        -- No manual UPDATE public.inventory here, handled by sync_inventory_batches_trigger
+    END LOOP;
+    
+    UPDATE public.orders SET stock_restored_at = NOW() WHERE id = p_order_id;
+
+    RETURN TRUE;
+END;
+$$;
+
 
 -- Migration: 00000000000019_pharmacist_trigger_cleanup.sql
-��- -   D r o p   t h e   o l d e r   o v e r l a p p i n g   t r i g g e r   a n d   f u n c t i o n   f r o m   m i g r a t i o n   1 1 
- D R O P   T R I G G E R   I F   E X I S T S   c h e c k _ p h a r m a c i s t _ p r i c e _ c h a n g e   O N   p u b l i c . m e d i c i n e s ; 
- D R O P   F U N C T I O N   I F   E X I S T S   p u b l i c . p r e v e n t _ p h a r m a c i s t _ p r i c e _ c h a n g e ( ) ; 
- 
- - -   U p d a t e   t h e   n e w e r   t r i g g e r   f r o m   m i g r a t i o n   1 4   t o   c o v e r   a l l   r e s t r i c t e d   f i e l d s 
- C R E A T E   O R   R E P L A C E   F U N C T I O N   p u b l i c . e n f o r c e _ p h a r m a c i s t _ m e d i c i n e _ r e s t r i c t i o n s ( ) 
- R E T U R N S   T R I G G E R 
- L A N G U A G E   p l p g s q l 
- S E C U R I T Y   D E F I N E R 
- S E T   s e a r c h _ p a t h   =   p u b l i c 
- A S   $ B O D Y 
- D E C L A R E 
-         v _ u i d   U U I D ; 
-         v _ r o l e   T E X T ; 
- B E G I N 
-         I F   T G _ O P   =   ' U P D A T E '   T H E N 
-                 I F   O L D . m r p   I S   D I S T I N C T   F R O M   N E W . m r p   O R 
-                       O L D . p r i c e   I S   D I S T I N C T   F R O M   N E W . p r i c e   O R 
-                       O L D . d r u g _ s c h e d u l e   I S   D I S T I N C T   F R O M   N E W . d r u g _ s c h e d u l e   O R 
-                       O L D . p r e s c r i p t i o n _ r e q u i r e d   I S   D I S T I N C T   F R O M   N E W . p r e s c r i p t i o n _ r e q u i r e d   O R 
-                       O L D . i s _ a c t i v e   I S   D I S T I N C T   F R O M   N E W . i s _ a c t i v e   O R 
-                       O L D . c o m p o s i t i o n   I S   D I S T I N C T   F R O M   N E W . c o m p o s i t i o n   O R 
-                       O L D . m a n u f a c t u r e r   I S   D I S T I N C T   F R O M   N E W . m a n u f a c t u r e r   T H E N 
- 
-                         - -   a u t h . u i d ( )   i s   N U L L   u n d e r   s e r v i c e _ r o l e ;   s k i p   c h e c k 
-                         v _ u i d   : =   a u t h . u i d ( ) ; 
-                         I F   v _ u i d   I S   N O T   N U L L   T H E N 
-                                 S E L E C T   r o l e   I N T O   v _ r o l e   F R O M   p u b l i c . p r o f i l e s   W H E R E   i d   =   v _ u i d ; 
-                                 I F   v _ r o l e   =   ' p h a r m a c i s t '   T H E N 
-                                         R A I S E   E X C E P T I O N   ' P h a r m a c i s t s   a r e   n o t   a l l o w e d   t o   m o d i f y   r e s t r i c t e d   f i e l d s   ( P r i c e ,   M R P ,   S c h e d u l e ,   e t c . ) . ' ; 
-                                 E N D   I F ; 
-                         E N D   I F ; 
-                 E N D   I F ; 
-         E N D   I F ; 
-         R E T U R N   N E W ; 
- E N D ; 
- $ B O D Y ;  
- 
+-- Drop the older overlapping trigger and function from migration 11
+DROP TRIGGER IF EXISTS check_pharmacist_price_change ON public.medicines;
+DROP FUNCTION IF EXISTS public.prevent_pharmacist_price_change();
+
+-- Update the newer trigger from migration 14 to cover all restricted fields
+CREATE OR REPLACE FUNCTION public.enforce_pharmacist_medicine_restrictions()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_uid UUID;
+    v_role TEXT;
+BEGIN
+    IF TG_OP = 'UPDATE' THEN
+        IF OLD.mrp IS DISTINCT FROM NEW.mrp OR
+           OLD.price IS DISTINCT FROM NEW.price OR
+           OLD.drug_schedule IS DISTINCT FROM NEW.drug_schedule OR
+           OLD.prescription_required IS DISTINCT FROM NEW.prescription_required OR
+           OLD.is_active IS DISTINCT FROM NEW.is_active OR
+           OLD.composition IS DISTINCT FROM NEW.composition OR
+           OLD.manufacturer IS DISTINCT FROM NEW.manufacturer THEN
+
+            -- auth.uid() is NULL under service_role; skip check
+            v_uid := auth.uid();
+            IF v_uid IS NOT NULL THEN
+                SELECT role INTO v_role FROM public.profiles WHERE id = v_uid;
+                IF v_role = 'pharmacist' THEN
+                    RAISE EXCEPTION 'Pharmacists are not allowed to modify restricted fields (Price, MRP, Schedule, etc.).';
+                END IF;
+            END IF;
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
 
 -- Migration: 00000000000020_partial_refund_index.sql
-��- -   C r e a t e   a   p a r t i a l   u n i q u e   i n d e x   s o   o n l y   o n e   a c t i v e   r e f u n d   r o w   e x i s t s   p e r   r a z o r p a y _ p a y m e n t _ i d 
- - -   ( e i t h e r   P E N D I N G _ R E F U N D   o r   R E F U N D E D ) .   T h i s   p r e v e n t s   r a c e   c o n d i t i o n s   c r e a t i n g   m u l t i p l e   r e f u n d s . 
- C R E A T E   U N I Q U E   I N D E X   I F   N O T   E X I S T S   i d x _ p a y m e n t s _ s i n g l e _ r e f u n d _ p e r _ c h a r g e   
- O N   p u b l i c . p a y m e n t s   ( r a z o r p a y _ p a y m e n t _ i d )   
- W H E R E   s t a t u s   I N   ( ' P E N D I N G _ R E F U N D ' ,   ' R E F U N D E D ' ) ;  
- 
+-- Create a partial unique index so only one active refund row exists per razorpay_payment_id
+-- (either PENDING_REFUND or REFUNDED). This prevents race conditions creating multiple refunds.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_single_refund_per_charge 
+ON public.payments (razorpay_payment_id) 
+WHERE status IN ('PENDING_REFUND', 'REFUNDED');
+
+
+-- Migration: 00000000000021_payments_refund_id.sql
+-- 00000000000021_payments_refund_id.sql
+-- Add dedicated razorpay_refund_id column to payments table
+
+ALTER TABLE public.payments
+ADD COLUMN IF NOT EXISTS razorpay_refund_id TEXT;
+
+-- Backfill existing refunded rows if any were stored in razorpay_signature
+UPDATE public.payments
+SET razorpay_refund_id = razorpay_signature
+WHERE status IN ('REFUNDED', 'PENDING_REFUND')
+  AND razorpay_refund_id IS NULL
+  AND razorpay_signature IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_payments_razorpay_refund_id
+ON public.payments (razorpay_refund_id);
+
+
+-- Migration: 00000000000022_refunds_table.sql
+-- 00000000000022_refunds_table.sql
+-- Dedicated refunds table to decouple refund lifecycle and locking from payments table
+
+-- 1. Create dedicated refunds table
+CREATE TABLE IF NOT EXISTS public.refunds (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+    payment_id UUID REFERENCES public.payments(id) ON DELETE SET NULL,
+    razorpay_payment_id TEXT NOT NULL UNIQUE,
+    razorpay_refund_id TEXT,
+    amount NUMERIC NOT NULL,
+    status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'REFUNDED', 'FAILED')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 2. Indexes for fast lookups
+CREATE INDEX IF NOT EXISTS idx_refunds_order_id ON public.refunds(order_id);
+CREATE INDEX IF NOT EXISTS idx_refunds_payment_id ON public.refunds(payment_id);
+CREATE INDEX IF NOT EXISTS idx_refunds_razorpay_refund_id ON public.refunds(razorpay_refund_id);
+
+-- 3. Drop partial index from migration 20 on payments table
+DROP INDEX IF EXISTS public.idx_payments_single_refund_per_charge;
+
+-- 4. Enable RLS: service role only
+ALTER TABLE public.refunds ENABLE ROW LEVEL SECURITY;
+
+REVOKE ALL ON TABLE public.refunds FROM anon, authenticated, public;
+GRANT ALL ON TABLE public.refunds TO service_role;
+GRANT ALL ON TABLE public.refunds TO postgres;
+
+
+-- Migration: 00000000000023_customer_cancel_packed.sql
+-- Block customer cancellation after PACKED (staff may still cancel).
+-- Customers may only cancel their own orders, and only to CANCELLED.
+
+CREATE OR REPLACE FUNCTION public.process_order_status_update(
+    p_order_id UUID,
+    p_old_status TEXT,
+    p_new_status TEXT,
+    p_new_payment_status TEXT DEFAULT NULL,
+    p_changed_by UUID DEFAULT NULL,
+    p_notes TEXT DEFAULT NULL,
+    p_refund_id TEXT DEFAULT NULL,
+    p_is_admin_action BOOLEAN DEFAULT FALSE
+) RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_updated_count INTEGER;
+    v_order_current RECORD;
+    v_allowed_transitions TEXT[];
+    v_actor_role TEXT;
+BEGIN
+    SELECT * INTO v_order_current
+    FROM public.orders
+    WHERE id = p_order_id
+    FOR UPDATE;
+
+    IF v_order_current IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'ORDER_NOT_FOUND');
+    END IF;
+
+    IF p_is_admin_action THEN
+        IF p_changed_by IS NULL THEN
+            RETURN jsonb_build_object('success', false, 'error', 'ADMIN_ACTOR_REQUIRED');
+        END IF;
+
+        SELECT role INTO v_actor_role FROM public.profiles WHERE id = p_changed_by;
+        IF v_actor_role IS NULL OR v_actor_role NOT IN ('admin', 'pharmacist') THEN
+            RETURN jsonb_build_object('success', false, 'error', 'FORBIDDEN_ROLE');
+        END IF;
+    ELSE
+        IF p_changed_by IS NOT NULL THEN
+            IF v_order_current.user_id != p_changed_by THEN
+                RETURN jsonb_build_object('success', false, 'error', 'FORBIDDEN_OWNERSHIP');
+            END IF;
+            IF p_new_status != 'CANCELLED' THEN
+                RETURN jsonb_build_object('success', false, 'error', 'CUSTOMER_CAN_ONLY_CANCEL');
+            END IF;
+            IF v_order_current.status IN ('PACKED', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED') THEN
+                RAISE EXCEPTION 'CUSTOMER_CANCEL_NOT_ALLOWED: customers cannot cancel after PACKED'
+                    USING ERRCODE = 'P0001';
+            END IF;
+        END IF;
+    END IF;
+
+    IF v_order_current.status != p_old_status THEN
+        RAISE EXCEPTION 'STATUS_MISMATCH: current status is %', v_order_current.status
+            USING ERRCODE = 'P0001';
+    END IF;
+
+    v_allowed_transitions := CASE v_order_current.status
+        WHEN 'PENDING' THEN ARRAY['CONFIRMED','CANCELLED']
+        WHEN 'PENDING_PRESCRIPTION_APPROVAL' THEN ARRAY['CONFIRMED','CANCELLED']
+        WHEN 'CONFIRMED' THEN ARRAY['PROCESSING','PACKED','CANCELLED']
+        WHEN 'PROCESSING' THEN ARRAY['PACKED','CANCELLED']
+        WHEN 'PACKED' THEN ARRAY['SHIPPED','CANCELLED']
+        WHEN 'SHIPPED' THEN ARRAY['OUT_FOR_DELIVERY','CANCELLED']
+        WHEN 'OUT_FOR_DELIVERY' THEN ARRAY['DELIVERED','CANCELLED']
+        ELSE ARRAY[]::TEXT[]
+    END;
+
+    IF NOT (p_new_status = ANY(v_allowed_transitions)) THEN
+        RAISE EXCEPTION 'INVALID_TRANSITION: cannot change status from % to %', p_old_status, p_new_status
+            USING ERRCODE = 'P0001';
+    END IF;
+
+    UPDATE public.orders
+    SET status = p_new_status,
+        payment_status = COALESCE(p_new_payment_status, payment_status),
+        updated_at = NOW()
+    WHERE id = p_order_id AND status = p_old_status;
+
+    GET DIAGNOSTICS v_updated_count = ROW_COUNT;
+
+    IF v_updated_count = 0 THEN
+        RAISE EXCEPTION 'STATUS_MISMATCH'
+            USING ERRCODE = 'P0001';
+    END IF;
+
+    IF p_new_status IN ('CANCELLED', 'REJECTED') THEN
+        PERFORM public.restore_order_stock(p_order_id);
+    END IF;
+
+    INSERT INTO public.order_status_history (order_id, status, changed_by, notes)
+    VALUES (p_order_id, p_new_status, p_changed_by, p_notes);
+
+    IF p_is_admin_action AND p_changed_by IS NOT NULL THEN
+        INSERT INTO public.admin_audit_log (admin_id, action, entity_type, entity_id, details)
+        VALUES (p_changed_by, 'UPDATE_ORDER_STATUS', 'orders', p_order_id::text,
+            jsonb_build_object(
+                'old_status', p_old_status,
+                'new_status', p_new_status,
+                'notes', p_notes,
+                'refund_id', p_refund_id
+            ));
+    END IF;
+
+    IF p_refund_id IS NOT NULL THEN
+        UPDATE public.payments
+        SET status = 'REFUNDED',
+            razorpay_signature = p_refund_id,
+            updated_at = NOW()
+        WHERE order_id = p_order_id AND status = 'SUCCESS';
+    END IF;
+
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.process_order_status_update(UUID, TEXT, TEXT, TEXT, UUID, TEXT, TEXT, BOOLEAN) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.process_order_status_update(UUID, TEXT, TEXT, TEXT, UUID, TEXT, TEXT, BOOLEAN) FROM authenticated;
+REVOKE EXECUTE ON FUNCTION public.process_order_status_update(UUID, TEXT, TEXT, TEXT, UUID, TEXT, TEXT, BOOLEAN) FROM anon;
+
+
+-- Migration: 00000000000024_order_status_raise_exceptions.sql
+-- 00000000000024_order_status_raise_exceptions.sql
+-- Ensure process_order_status_update raises exceptions on ownership violation and invalid customer target status
+
+CREATE OR REPLACE FUNCTION public.process_order_status_update(
+    p_order_id UUID,
+    p_old_status TEXT,
+    p_new_status TEXT,
+    p_new_payment_status TEXT DEFAULT NULL,
+    p_changed_by UUID DEFAULT NULL,
+    p_notes TEXT DEFAULT NULL,
+    p_refund_id TEXT DEFAULT NULL,
+    p_is_admin_action BOOLEAN DEFAULT FALSE
+) RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_updated_count INTEGER;
+    v_order_current RECORD;
+    v_allowed_transitions TEXT[];
+    v_actor_role TEXT;
+BEGIN
+    SELECT * INTO v_order_current
+    FROM public.orders
+    WHERE id = p_order_id
+    FOR UPDATE;
+
+    IF v_order_current IS NULL THEN
+        RAISE EXCEPTION 'ORDER_NOT_FOUND: order does not exist'
+            USING ERRCODE = 'P0001';
+    END IF;
+
+    IF p_is_admin_action THEN
+        IF p_changed_by IS NULL THEN
+            RAISE EXCEPTION 'ADMIN_ACTOR_REQUIRED: staff actions require an admin_id'
+                USING ERRCODE = 'P0001';
+        END IF;
+
+        SELECT role INTO v_actor_role FROM public.profiles WHERE id = p_changed_by;
+        IF v_actor_role IS NULL OR v_actor_role NOT IN ('admin', 'pharmacist') THEN
+            RAISE EXCEPTION 'FORBIDDEN_ROLE: actor lacks staff privileges'
+                USING ERRCODE = 'P0001';
+        END IF;
+    ELSE
+        IF p_changed_by IS NOT NULL THEN
+            IF v_order_current.user_id != p_changed_by THEN
+                RAISE EXCEPTION 'FORBIDDEN_OWNERSHIP: customers can only cancel their own orders'
+                    USING ERRCODE = 'P0001';
+            END IF;
+            IF p_new_status != 'CANCELLED' THEN
+                RAISE EXCEPTION 'CUSTOMER_CAN_ONLY_CANCEL: customers may only transition to CANCELLED'
+                    USING ERRCODE = 'P0001';
+            END IF;
+            IF v_order_current.status IN ('PACKED', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED') THEN
+                RAISE EXCEPTION 'CUSTOMER_CANCEL_NOT_ALLOWED: customers cannot cancel after PACKED'
+                    USING ERRCODE = 'P0001';
+            END IF;
+        END IF;
+    END IF;
+
+    IF v_order_current.status != p_old_status THEN
+        RAISE EXCEPTION 'STATUS_MISMATCH: current status is %', v_order_current.status
+            USING ERRCODE = 'P0001';
+    END IF;
+
+    v_allowed_transitions := CASE v_order_current.status
+        WHEN 'PENDING' THEN ARRAY['CONFIRMED','CANCELLED']
+        WHEN 'PENDING_PRESCRIPTION_APPROVAL' THEN ARRAY['CONFIRMED','CANCELLED']
+        WHEN 'CONFIRMED' THEN ARRAY['PROCESSING','PACKED','CANCELLED']
+        WHEN 'PROCESSING' THEN ARRAY['PACKED','CANCELLED']
+        WHEN 'PACKED' THEN ARRAY['SHIPPED','CANCELLED']
+        WHEN 'SHIPPED' THEN ARRAY['OUT_FOR_DELIVERY','CANCELLED']
+        WHEN 'OUT_FOR_DELIVERY' THEN ARRAY['DELIVERED','CANCELLED']
+        ELSE ARRAY[]::TEXT[]
+    END;
+
+    IF NOT (p_new_status = ANY(v_allowed_transitions)) THEN
+        RAISE EXCEPTION 'INVALID_TRANSITION: cannot change status from % to %', p_old_status, p_new_status
+            USING ERRCODE = 'P0001';
+    END IF;
+
+    UPDATE public.orders
+    SET status = p_new_status,
+        payment_status = COALESCE(p_new_payment_status, payment_status),
+        updated_at = NOW()
+    WHERE id = p_order_id AND status = p_old_status;
+
+    GET DIAGNOSTICS v_updated_count = ROW_COUNT;
+
+    IF v_updated_count = 0 THEN
+        RAISE EXCEPTION 'STATUS_MISMATCH'
+            USING ERRCODE = 'P0001';
+    END IF;
+
+    IF p_new_status IN ('CANCELLED', 'REJECTED') THEN
+        PERFORM public.restore_order_stock(p_order_id);
+    END IF;
+
+    INSERT INTO public.order_status_history (order_id, status, changed_by, notes)
+    VALUES (p_order_id, p_new_status, p_changed_by, p_notes);
+
+    IF p_is_admin_action AND p_changed_by IS NOT NULL THEN
+        INSERT INTO public.admin_audit_log (admin_id, action, entity_type, entity_id, details)
+        VALUES (p_changed_by, 'UPDATE_ORDER_STATUS', 'orders', p_order_id::text,
+            jsonb_build_object(
+                'old_status', p_old_status,
+                'new_status', p_new_status,
+                'notes', p_notes,
+                'refund_id', p_refund_id
+            ));
+    END IF;
+
+    IF p_refund_id IS NOT NULL THEN
+        UPDATE public.payments
+        SET status = 'REFUNDED',
+            razorpay_signature = p_refund_id,
+            updated_at = NOW()
+        WHERE order_id = p_order_id AND status = 'SUCCESS';
+    END IF;
+
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.process_order_status_update(UUID, TEXT, TEXT, TEXT, UUID, TEXT, TEXT, BOOLEAN) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.process_order_status_update(UUID, TEXT, TEXT, TEXT, UUID, TEXT, TEXT, BOOLEAN) FROM authenticated;
+REVOKE EXECUTE ON FUNCTION public.process_order_status_update(UUID, TEXT, TEXT, TEXT, UUID, TEXT, TEXT, BOOLEAN) FROM anon;
+
+
+-- Migration: 00000000000025_email_events.sql
+-- 00000000000025_email_events.sql
+-- Transactional email event log with RLS restricted to service role only
+
+CREATE TABLE IF NOT EXISTS public.email_events (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id UUID REFERENCES public.orders(id) ON DELETE SET NULL,
+    recipient TEXT NOT NULL,
+    template TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('SENT', 'FAILED', 'LOGGED')),
+    error_message TEXT,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Indexes for fast lookups and reporting
+CREATE INDEX IF NOT EXISTS idx_email_events_order_id ON public.email_events(order_id);
+CREATE INDEX IF NOT EXISTS idx_email_events_status ON public.email_events(status);
+CREATE INDEX IF NOT EXISTS idx_email_events_created_at ON public.email_events(created_at);
+
+-- Enable RLS: service role only
+ALTER TABLE public.email_events ENABLE ROW LEVEL SECURITY;
+
+REVOKE ALL ON TABLE public.email_events FROM anon, authenticated, public;
+GRANT ALL ON TABLE public.email_events TO service_role;
+GRANT ALL ON TABLE public.email_events TO postgres;
+
 

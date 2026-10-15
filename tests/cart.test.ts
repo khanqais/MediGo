@@ -36,13 +36,13 @@ describe('Cart Store (Real Code)', () => {
     expect(useCartStore.getState().total()).toBe(0);
 
     // Add item below threshold
-    useCartStore.getState().addItem({ id: '1', price: FREE_DELIVERY_THRESHOLD - 10, mrp: FREE_DELIVERY_THRESHOLD } as any, 1);
+    useCartStore.getState().addItem({ id: '1', drugSchedule: 'OTC', prescriptionRequired: false, price: FREE_DELIVERY_THRESHOLD - 10, mrp: FREE_DELIVERY_THRESHOLD } as any, 1);
     expect(useCartStore.getState().subtotal()).toBe(FREE_DELIVERY_THRESHOLD - 10);
     expect(useCartStore.getState().deliveryFee()).toBe(STANDARD_DELIVERY_FEE);
     expect(useCartStore.getState().total()).toBe(FREE_DELIVERY_THRESHOLD - 10 + STANDARD_DELIVERY_FEE);
 
     // Add item above threshold
-    useCartStore.getState().addItem({ id: '2', price: 20, mrp: 30 } as any, 1);
+    useCartStore.getState().addItem({ id: '2', drugSchedule: 'OTC', prescriptionRequired: false, price: 20, mrp: 30 } as any, 1);
     expect(useCartStore.getState().subtotal()).toBe(FREE_DELIVERY_THRESHOLD + 10);
     expect(useCartStore.getState().deliveryFee()).toBe(0); // Free delivery unlocked
     expect(useCartStore.getState().total()).toBe(FREE_DELIVERY_THRESHOLD + 10);
@@ -50,7 +50,7 @@ describe('Cart Store (Real Code)', () => {
   });
 
   it('should calculate coupon discount correctly', () => {
-    useCartStore.getState().addItem({ id: '1', price: 100, mrp: 120 } as any, 1);
+    useCartStore.getState().addItem({ id: '1', drugSchedule: 'OTC', prescriptionRequired: false, price: 100, mrp: 120 } as any, 1);
     expect(useCartStore.getState().total()).toBe(100 + STANDARD_DELIVERY_FEE);
 
     useCartStore.getState().setCoupon({ code: 'SAVE10', discount: 10 });

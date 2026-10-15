@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { DrugSchedule } from "@/types/medicine";
+import { getStock, getInventory } from "@/lib/inventory";
 
 interface MedicineItem {
   id: string;
@@ -174,7 +175,7 @@ export default function AdminMedicinesPage() {
       batchQuantity: "0", // Editing existing medicine requires separate batch adjustment
         batchNumber: "",
         expiryDate: "",
-      reorderLevel: String(med.inventory?.reorder_level ?? 10),
+      reorderLevel: String(getInventory(med)?.reorder_level ?? 10),
       drugSchedule: med.drug_schedule || "OTC",
       manufacturer: med.manufacturer || "",
       packSize: med.pack_size || "",
@@ -518,8 +519,9 @@ export default function AdminMedicinesPage() {
                 </tr>
               ) : (
                 medicines.map((med) => {
-                  const stock = med.inventory?.stock_quantity ?? 0;
-                  const reorder = med.inventory?.reorder_level ?? 10;
+                  const stock = getStock(med);
+                  const invRow = getInventory(med);
+                  const reorder = invRow?.reorder_level ?? 10;
                   const isLow = stock <= reorder;
 
                   return (

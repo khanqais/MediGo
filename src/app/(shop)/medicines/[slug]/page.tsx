@@ -30,6 +30,7 @@ import * as Tabs from "@radix-ui/react-tabs";
 import { toast } from "sonner";
 import MedicineCard from "@/components/medicine/MedicineCard";
 import RatingStars from "@/components/shared/RatingStars";
+import { isOtcMedicine, isOtcOnlyMode, OTC_ONLY_STOREFRONT_LABEL } from "@/lib/sales-mode";
 
 export default function MedicineDetailPage({ params }: { params: { slug: string } }) {
   const router = useRouter();
@@ -390,6 +391,10 @@ export default function MedicineDetailPage({ params }: { params: { slug: string 
                 {medicine.drugSchedule === "X" ? (
                   <div className="flex-1 h-12 bg-slate-100 text-slate-400 border border-slate-200 rounded-xl font-bold flex items-center justify-center text-sm cursor-not-allowed">
                     Prohibited from Online Sale (Offline Retail Only)
+                  </div>
+                ) : isOtcOnlyMode() && !isOtcMedicine(medicine) ? (
+                  <div className="flex-1 h-12 bg-slate-100 text-slate-600 border border-slate-200 rounded-xl font-bold flex items-center justify-center text-sm cursor-not-allowed">
+                    {OTC_ONLY_STOREFRONT_LABEL}
                   </div>
                 ) : (
                   <>
