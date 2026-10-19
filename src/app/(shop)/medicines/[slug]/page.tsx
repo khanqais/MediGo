@@ -102,10 +102,37 @@ export default function MedicineDetailPage({ params }: { params: { slug: string 
     }
   }, [medicine]);
 
-  if (loading || !medicine) {
+  if (loading) {
+    return (
+      <div className="bg-slate-50 min-h-screen">
+        <div className="container mx-auto px-4 py-6">
+          {/* Breadcrumb skeleton */}
+          <div className="h-4 w-48 bg-slate-200 rounded animate-pulse mb-6" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12">
+            {/* Image skeleton - matches the aspect ratio of the actual image container */}
+            <div className="aspect-square bg-slate-200 rounded-2xl animate-pulse" />
+            {/* Content skeleton */}
+            <div className="space-y-4">
+              <div className="h-6 w-24 bg-slate-200 rounded animate-pulse" />
+              <div className="h-8 w-3/4 bg-slate-200 rounded animate-pulse" />
+              <div className="h-4 w-1/2 bg-slate-200 rounded animate-pulse" />
+              <div className="h-12 w-32 bg-slate-200 rounded animate-pulse" />
+              <div className="h-4 w-full bg-slate-200 rounded animate-pulse" />
+              <div className="h-4 w-5/6 bg-slate-200 rounded animate-pulse" />
+              <div className="h-12 w-full bg-primary/20 rounded-xl animate-pulse mt-6" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!medicine) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center bg-slate-50">
-        <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+        <div className="text-center">
+          <p className="text-slate-600 font-medium">Medicine not found</p>
+        </div>
       </div>
     );
   }

@@ -260,51 +260,53 @@ function SearchContent() {
         </div>
 
         {/* Results Grid or Empty State */}
-        {loading ? (
-          <div className="py-20 flex justify-center">
-            <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-          </div>
-        ) : searchResults.length === 0 ? (
-          <div className="bg-white rounded-3xl p-10 sm:p-16 text-center border border-slate-200 max-w-xl mx-auto shadow-xs">
-            <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
-              🔎
+        <div className="min-h-[400px]">
+          {loading ? (
+            <div className="py-20 min-h-[400px] flex items-center justify-center">
+              <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
             </div>
-            <h3 className="text-xl font-bold text-slate-900 mb-2">No medicines match your search</h3>
-            <p className="text-slate-500 text-sm mb-6 leading-relaxed">
-              We couldn&apos;t find any generic medicine matching &ldquo;{searchTerm}&rdquo;. Try checking for spelling errors or search using the generic chemical salt name.
-            </p>
-
-            <div className="p-4 bg-orange-50 border border-orange-200 rounded-2xl mb-6 text-left">
-              <h4 className="font-bold text-xs text-slate-900 mb-1 flex items-center gap-1.5">
-                <Upload size={14} className="text-accent" /> Can&apos;t find your brand name?
-              </h4>
-              <p className="text-xs text-slate-600">
-                Upload your doctor&apos;s prescription and our registered pharmacists will find the exact generic equivalent with up to 80% discount for you.
+          ) : searchResults.length === 0 ? (
+            <div className="bg-white rounded-3xl p-10 sm:p-16 text-center border border-slate-200 max-w-xl mx-auto shadow-xs">
+              <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
+                🔎
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-2">No medicines match your search</h3>
+              <p className="text-slate-500 text-sm mb-6 leading-relaxed">
+                We couldn&apos;t find any generic medicine matching &ldquo;{searchTerm}&rdquo;. Try checking for spelling errors or search using the generic chemical salt name.
               </p>
-            </div>
 
-            <div className="flex flex-col sm:flex-row justify-center gap-3">
-              <button 
-                onClick={() => { setSearchTerm(""); setSelectedCategory("all"); setRxFilter("all"); }}
-                className="px-5 py-2.5 bg-primary text-white rounded-xl text-xs font-bold hover:bg-primary-dark transition"
-              >
-                Reset Search Filters
-              </button>
-              <Link 
-                href="/prescriptions"
-                className="px-5 py-2.5 bg-accent hover:bg-orange-600 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5"
-              >
-                <Upload size={14} /> Upload Prescription
-              </Link>
+              <div className="p-4 bg-orange-50 border border-orange-200 rounded-2xl mb-6 text-left">
+                <h4 className="font-bold text-xs text-slate-900 mb-1 flex items-center gap-1.5">
+                  <Upload size={14} className="text-accent" /> Can&apos;t find your brand name?
+                </h4>
+                <p className="text-xs text-slate-600">
+                  Upload your doctor&apos;s prescription and our registered pharmacists will find the exact generic equivalent with up to 80% discount for you.
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row justify-center gap-3">
+                <button 
+                  onClick={() => { setSearchTerm(""); setSelectedCategory("all"); setRxFilter("all"); }}
+                  className="px-5 py-2.5 bg-primary text-white rounded-xl text-xs font-bold hover:bg-primary-dark transition"
+                >
+                  Reset Search Filters
+                </button>
+                <Link 
+                  href="/prescriptions"
+                  className="px-5 py-2.5 bg-accent hover:bg-orange-600 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5"
+                >
+                  <Upload size={14} /> Upload Prescription
+                </Link>
+              </div>
             </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {searchResults.map((medicine) => (
-              <MedicineCard key={medicine.id} medicine={medicine} />
-            ))}
-          </div>
-        )}
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              {searchResults.map((medicine) => (
+                <MedicineCard key={medicine.id} medicine={medicine} />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

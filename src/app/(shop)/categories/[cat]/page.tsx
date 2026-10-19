@@ -1,11 +1,9 @@
-"use client";
-
-import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
-import MedicineCard from "@/components/medicine/MedicineCard";
-import { ChevronRight, Filter, Search, SlidersHorizontal, ArrowUpDown, Sparkles, ShieldCheck } from "lucide-react";
+import { ChevronRight, Sparkles, ShieldCheck } from "lucide-react";
 import { Medicine } from "@/types/medicine";
-import { toast } from "sonner";
+import { createClient } from "@/lib/supabase/server";
+import { getStock } from "@/lib/inventory";
+import CategoryFilters from "./CategoryFilters";
 
 const categoryMeta: Record<string, { title: string; desc: string; icon: string; bannerGradient: string }> = {
   "fever-pain": {
@@ -70,31 +68,13 @@ const categoryMeta: Record<string, { title: string; desc: string; icon: string; 
   }
 };
 
-export default function CategoryDetailPage({ params }: { params: { cat: string } }) {
+export async function generateMetadata({ params }: { params: { cat: string } }) {
+  const meta = categoryMeta[params.cat] ?? categoryMeta[params.cat?.toLowerCase()] ?? { title: params.cat };
+  return { title: `${meta.title} | MediQuick`, description: meta.desc };
+}
+
+export default async function CategoryDetailPage({ params }: { params: { cat: string } }) {
   const catSlug = params.cat.toLowerCase();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [sortBy, setSortBy] = useState<"featured" | "price-asc" | "price-desc" | "discount">("featured");
-  const [rxFilter, setRxFilter] = useState<"all" | "otc" | "rx">("all");
-  const [medicines, setMedicines] = useState<Medicine[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function fetchCategoryMedicines() {
-      try {
-        const res = await fetch(`/api/medicines?category=${catSlug}&limit=100`);
-        if (!res.ok) throw new Error("Failed to fetch");
-        const data = await res.json();
-        setMedicines(data.data || []);
-      } catch (error) {
-        console.error(error);
-        toast.error("Failed to load category medicines");
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchCategoryMedicines();
-  }, [catSlug]);
-
   const meta = categoryMeta[catSlug] || {
     title: catSlug.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" "),
     desc: `Explore certified generic medicines and healthcare essentials for ${catSlug.replace("-", " ")}.`,
@@ -102,37 +82,41 @@ export default function CategoryDetailPage({ params }: { params: { cat: string }
     bannerGradient: "from-primary to-green-700"
   };
 
-  const filteredMedicines = useMemo(() => {
-    // Basic local filter replicating previous filterMedicines behavior for this specific category
-    let results = medicines;
-    
-    if (searchTerm) {
-      const q = searchTerm.toLowerCase();
-      results = results.filter(m => 
-        m.name.toLowerCase().includes(q) || 
-        m.composition.toLowerCase().includes(q) || 
-        m.brand.toLowerCase().includes(q)
-      );
-    }
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("medicines")
+    .select("id, name, brand, slug, composition, mrp, price, discount_percentage, prescription_required, drug_schedule, image_url, inventory(stock_quantity), categories!inner(slug)")
+    .eq("is_active", true)
+    .eq("categories.slug", catSlug)
+    .limit(100);
 
-    if (rxFilter === "rx") {
-      results = results.filter(m => m.prescriptionRequired);
-    } else if (rxFilter === "otc") {
-      results = results.filter(m => !m.prescriptionRequired);
-    }
-
-    // Sort
-    results = [...results].sort((a, b) => {
-      switch (sortBy) {
-        case "price-asc": return a.price - b.price;
-        case "price-desc": return b.price - a.price;
-        case "discount": return b.discountPercentage - a.discountPercentage;
-        default: return 0;
-      }
-    });
-
-    return results;
-  }, [medicines, searchTerm, sortBy, rxFilter]);
+  const medicines: Medicine[] = (data || []).map((med: any) => ({
+    id: med.id,
+    name: med.name,
+    brand: med.brand || "",
+    slug: med.slug,
+    composition: med.composition || "",
+    mrp: Number(med.mrp),
+    price: Number(med.price),
+    discountPercentage: med.discount_percentage,
+    prescriptionRequired: med.prescription_required,
+    drugSchedule: med.drug_schedule || (med.prescription_required ? "H" : "OTC"),
+    category: med.categories?.slug || catSlug,
+    imageUrl: med.image_url || "",
+    stock: getStock(med),
+    rating: null,
+    reviewsCount: 0,
+    description: med.description || "",
+    directions: med.directions || "",
+    sideEffects: med.warnings || "",
+    genericName: med.generic_name || "",
+    images: med.images || [],
+    packSize: med.pack_size || "",
+    dosage: med.dosage || "",
+    manufacturer: med.manufacturer || "",
+    faqs: [],
+    tags: med.tags || [],
+  }));
 
   return (
     <div className="bg-slate-50 min-h-screen pb-16">
@@ -165,7 +149,7 @@ export default function CategoryDetailPage({ params }: { params: { cat: string }
             </div>
 
             <div className="bg-white/15 backdrop-blur-md rounded-2xl p-4 border border-white/20 text-center shrink-0 self-start md:self-center">
-              <span className="block text-2xl sm:text-3xl font-black">{loading ? "-" : filteredMedicines.length}</span>
+              <span className="block text-2xl sm:text-3xl font-black">{medicines.length}</span>
               <span className="text-xs text-white/80 uppercase tracking-wider font-semibold">Available Products</span>
             </div>
           </div>
@@ -173,96 +157,7 @@ export default function CategoryDetailPage({ params }: { params: { cat: string }
       </div>
 
       <div className="container mx-auto px-4 py-8">
-        {/* Controls & Filter Bar */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs mb-8 flex flex-col md:flex-row gap-4 items-center justify-between">
-          {/* Search inside category */}
-          <div className="relative w-full md:w-80">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-            <input 
-              type="text" 
-              placeholder={`Search in ${meta.title}...`}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs sm:text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
-            />
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-end">
-            {/* Rx Filter */}
-            <div className="flex items-center bg-slate-100 p-1 rounded-xl text-xs font-semibold">
-              <button
-                onClick={() => setRxFilter("all")}
-                className={`px-3 py-1.5 rounded-lg transition-all ${rxFilter === "all" ? "bg-white text-slate-900 shadow-xs font-bold" : "text-slate-600 hover:text-slate-900"}`}
-              >
-                All
-              </button>
-              <button
-                onClick={() => setRxFilter("otc")}
-                className={`px-3 py-1.5 rounded-lg transition-all ${rxFilter === "otc" ? "bg-white text-slate-900 shadow-xs font-bold" : "text-slate-600 hover:text-slate-900"}`}
-              >
-                OTC (No Rx)
-              </button>
-              <button
-                onClick={() => setRxFilter("rx")}
-                className={`px-3 py-1.5 rounded-lg transition-all ${rxFilter === "rx" ? "bg-white text-slate-900 shadow-xs font-bold" : "text-slate-600 hover:text-slate-900"}`}
-              >
-                Rx Only
-              </button>
-            </div>
-
-            {/* Sort Dropdown */}
-            <div className="flex items-center gap-2">
-              <ArrowUpDown size={15} className="text-slate-400 shrink-0" />
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as any)}
-                className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-primary cursor-pointer"
-              >
-                <option value="featured">Top Rated</option>
-                <option value="price-asc">Price: Low to High</option>
-                <option value="price-desc">Price: High to Low</option>
-                <option value="discount">Highest Discount</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Product Grid or Empty State */}
-        {loading ? (
-          <div className="py-20 flex justify-center">
-            <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-          </div>
-        ) : filteredMedicines.length === 0 ? (
-          <div className="bg-white rounded-3xl p-12 text-center border border-slate-200 max-w-lg mx-auto shadow-xs">
-            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">
-              🔍
-            </div>
-            <h3 className="text-lg font-bold text-slate-900 mb-2">No medicines found</h3>
-            <p className="text-slate-500 text-xs sm:text-sm mb-6">
-              We couldn&apos;t find any products matching your specific filter criteria in this category.
-            </p>
-            <div className="flex justify-center gap-3">
-              <button 
-                onClick={() => { setSearchTerm(""); setRxFilter("all"); setSortBy("featured"); }}
-                className="px-4 py-2 bg-primary text-white rounded-xl text-xs font-bold hover:bg-primary-dark transition"
-              >
-                Reset Filters
-              </button>
-              <Link 
-                href="/medicines"
-                className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-200 transition"
-              >
-                View All Medicines
-              </Link>
-            </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {filteredMedicines.map((medicine) => (
-              <MedicineCard key={medicine.id} medicine={medicine} />
-            ))}
-          </div>
-        )}
+        <CategoryFilters medicines={medicines} meta={meta} />
 
         {/* Bottom Educational / Generic Savings Explainer */}
         <div className="mt-16 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-3xl border border-emerald-100 p-6 sm:p-8 flex flex-col md:flex-row items-center justify-between gap-6">

@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import useEmblaCarousel from "embla-carousel-react";
-import { ChevronLeft, ChevronRight, Upload, ArrowRight, ShieldCheck, Zap } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { ChevronLeft, ChevronRight, Upload, ArrowRight, Zap } from "lucide-react";
 import Link from "next/link";
 
 const slides = [
@@ -42,6 +41,7 @@ const slides = [
 export default function HeroCarousel() {
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true });
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [mounted, setMounted] = useState(false);
 
   const scrollPrev = useCallback(() => {
     if (emblaApi) emblaApi.scrollPrev();
@@ -59,6 +59,10 @@ export default function HeroCarousel() {
     if (!emblaApi) return;
     setSelectedIndex(emblaApi.selectedScrollSnap());
   }, [emblaApi]);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!emblaApi) return;
@@ -87,12 +91,12 @@ export default function HeroCarousel() {
               <div className="absolute -left-16 -bottom-16 w-96 h-96 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
 
               <div className="container mx-auto z-10 text-white max-w-4xl">
-                <motion.div
-                  key={selectedIndex === index ? `active-${index}` : `inactive-${index}`}
-                  initial={{ opacity: 0, y: 15 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, ease: "easeOut" }}
-                  className="space-y-4 sm:space-y-6"
+                <div
+                  className={`space-y-4 sm:space-y-6 transition-opacity transition-transform duration-500 ${
+                    mounted && selectedIndex === index
+                      ? "opacity-100 translate-y-0"
+                      : "opacity-0 translate-y-2"
+                  }`}
                 >
                   <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/15 px-3.5 py-1.5 rounded-full text-xs font-semibold text-emerald-300">
                     <Zap size={14} className="text-yellow-300 fill-current" />
@@ -125,7 +129,7 @@ export default function HeroCarousel() {
                       </Link>
                     )}
                   </div>
-                </motion.div>
+                </div>
               </div>
             </div>
           </div>

@@ -29,6 +29,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.variable} ${plusJakarta.variable}`} suppressHydrationWarning>
+      <head>
+        <link rel="preconnect" href="https://dfnaesnbumckoiibmbil.supabase.co" />
+        <link rel="dns-prefetch" href="https://dfnaesnbumckoiibmbil.supabase.co" />
+      </head>
       <body className={`${inter.className} min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-primary/20 selection:text-primary-dark`}>
         <Providers>
           <StoreLayout>{children}</StoreLayout>
