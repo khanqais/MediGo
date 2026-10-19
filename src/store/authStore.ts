@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { createClient } from "@/lib/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 import { UserRole } from "@/types/user";
 
@@ -34,45 +33,72 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   isLoading: true,
 
   initialize: () => {
-    const supabase = createClient();
-
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // If no Supabase auth cookie exists in browser, user is anonymous.
+    // Avoid loading the ~55KB Supabase client bundle on initial landing!
+    if (
+      typeof document !== "undefined" &&
+      !document.cookie.includes("-auth-token") &&
+      !document.cookie.includes("sb-")
+    ) {
       set({
-        session,
-        user: session?.user ?? null,
-        isAuthenticated: !!session?.user,
+        session: null,
+        user: null,
+        isAuthenticated: false,
         isLoading: false,
       });
-      if (session?.user) {
-        get().fetchProfile();
-      }
-    });
+      return () => {};
+    }
 
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      set({
-        session,
-        user: session?.user ?? null,
-        isAuthenticated: !!session?.user,
-        isLoading: false,
+    let unsub: (() => void) | null = null;
+    let active = true;
+
+    import("@/lib/supabase/client").then(({ createClient }) => {
+      if (!active) return;
+      const supabase = createClient();
+
+      // Get initial session
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (!active) return;
+        set({
+          session,
+          user: session?.user ?? null,
+          isAuthenticated: !!session?.user,
+          isLoading: false,
+        });
+        if (session?.user) {
+          get().fetchProfile();
+        }
       });
-      if (session?.user) {
-        get().fetchProfile();
-      } else {
-        set({ profile: null });
-      }
+
+      // Listen for auth changes
+      const {
+        data: { subscription },
+      } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (!active) return;
+        set({
+          session,
+          user: session?.user ?? null,
+          isAuthenticated: !!session?.user,
+          isLoading: false,
+        });
+        if (session?.user) {
+          get().fetchProfile();
+        } else {
+          set({ profile: null });
+        }
+      });
+
+      unsub = () => subscription.unsubscribe();
     });
 
-    // Return cleanup function
     return () => {
-      subscription.unsubscribe();
+      active = false;
+      if (unsub) unsub();
     };
   },
 
   fetchProfile: async () => {
+    const { createClient } = await import("@/lib/supabase/client");
     const supabase = createClient();
     const userId = get().user?.id;
     if (!userId) return;
@@ -89,6 +115,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   },
 
   logout: async () => {
+    const { createClient } = await import("@/lib/supabase/client");
     const supabase = createClient();
     await supabase.auth.signOut();
     set({

@@ -67,7 +67,6 @@ const config = {
       },
       fontFamily: {
         sans: ['var(--font-inter)', 'system-ui', 'sans-serif'],
-        display: ['var(--font-plus-jakarta)', 'sans-serif'],
       },
       borderRadius: {
         pill: '9999px',

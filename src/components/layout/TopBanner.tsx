@@ -4,22 +4,20 @@ import { useState, useEffect } from "react";
 import { X, Sparkles } from "lucide-react";
 
 export default function TopBanner() {
-  const [isVisible, setIsVisible] = useState(false); // start false to prevent hydration mismatch
-  const [mounted, setMounted] = useState(false);
+  const [isDismissed, setIsDismissed] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
-    if (!localStorage.getItem("mediquick-banner-dismissed")) {
-      setIsVisible(true);
+    if (localStorage.getItem("mediquick-banner-dismissed")) {
+      setIsDismissed(true);
     }
   }, []);
 
   const handleDismiss = () => {
-    setIsVisible(false);
+    setIsDismissed(true);
     localStorage.setItem("mediquick-banner-dismissed", "true");
   };
 
-  if (!mounted || !isVisible) return null;
+  if (isDismissed) return null;
 
   return (
     <div className="bg-primary-dark text-white px-4 py-2 text-xs md:text-sm font-medium flex items-center justify-between transition-all duration-300 shadow-xs">

@@ -1,6 +1,3 @@
-"use client";
-
-import * as Accordion from "@radix-ui/react-accordion";
 import { ChevronDown, HelpCircle } from "lucide-react";
 
 const faqs = [
@@ -43,27 +40,23 @@ export default function FAQSection() {
           </p>
         </div>
 
-        <Accordion.Root type="single" collapsible className="w-full space-y-3.5">
+        <div className="w-full space-y-3.5">
           {faqs.map((faq, i) => (
-            <Accordion.Item 
-              key={i} 
-              value={`item-${i}`}
-              className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-2xs data-[state=open]:border-primary/50 data-[state=open]:shadow-md transition-all"
+            <details
+              key={i}
+              name="faq"
+              className="group border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-2xs open:border-primary/50 open:shadow-md transition-all"
             >
-              <Accordion.Header className="flex">
-                <Accordion.Trigger className="flex flex-1 items-center justify-between py-4 px-6 font-bold text-left text-sm sm:text-base text-slate-800 hover:text-primary transition-colors [&[data-state=open]>svg]:rotate-180">
-                  <span>{faq.q}</span>
-                  <ChevronDown className="h-5 w-5 text-slate-400 shrink-0 transition-transform duration-200 ml-4" />
-                </Accordion.Trigger>
-              </Accordion.Header>
-              <Accordion.Content className="overflow-hidden text-slate-600 text-xs sm:text-sm leading-relaxed data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
-                <div className="px-6 pb-5 pt-1 border-t border-slate-100/80">
-                  {faq.a}
-                </div>
-              </Accordion.Content>
-            </Accordion.Item>
+              <summary className="flex items-center justify-between py-4 px-6 font-bold text-left text-sm sm:text-base text-slate-800 hover:text-primary transition-colors cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                <span>{faq.q}</span>
+                <ChevronDown className="h-5 w-5 text-slate-400 shrink-0 transition-transform duration-200 ml-4 group-open:rotate-180" />
+              </summary>
+              <div className="px-6 pb-5 pt-1 border-t border-slate-100/80 text-slate-600 text-xs sm:text-sm leading-relaxed">
+                {faq.a}
+              </div>
+            </details>
           ))}
-        </Accordion.Root>
+        </div>
       </div>
     </section>
   );

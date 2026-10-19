@@ -5,10 +5,15 @@ import TopBanner from "@/components/layout/TopBanner";
 import Navbar from "@/components/layout/Navbar";
 import SubNav from "@/components/layout/SubNav";
 import MobileNav from "@/components/layout/MobileNav";
-import Footer from "@/components/layout/Footer";
 import CartDrawer from "@/components/cart/CartDrawer";
 
-export default function StoreLayout({ children }: { children: React.ReactNode }) {
+export default function StoreLayout({ 
+  children,
+  footer,
+}: { 
+  children: React.ReactNode;
+  footer?: React.ReactNode;
+}) {
   const pathname = usePathname();
   const isAdmin = pathname?.startsWith("/admin");
 
@@ -23,7 +28,7 @@ export default function StoreLayout({ children }: { children: React.ReactNode })
       <SubNav />
       <CartDrawer />
       <main className="flex-1">{children}</main>
-      <Footer />
+      {footer}
       <MobileNav />
     </div>
   );

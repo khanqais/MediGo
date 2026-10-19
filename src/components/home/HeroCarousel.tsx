@@ -41,7 +41,6 @@ const slides = [
 export default function HeroCarousel() {
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true });
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [mounted, setMounted] = useState(false);
 
   const scrollPrev = useCallback(() => {
     if (emblaApi) emblaApi.scrollPrev();
@@ -59,10 +58,6 @@ export default function HeroCarousel() {
     if (!emblaApi) return;
     setSelectedIndex(emblaApi.selectedScrollSnap());
   }, [emblaApi]);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   useEffect(() => {
     if (!emblaApi) return;
@@ -93,7 +88,7 @@ export default function HeroCarousel() {
               <div className="container mx-auto z-10 text-white max-w-4xl">
                 <div
                   className={`space-y-4 sm:space-y-6 transition-opacity transition-transform duration-500 ${
-                    mounted && selectedIndex === index
+                    selectedIndex === index
                       ? "opacity-100 translate-y-0"
                       : "opacity-0 translate-y-2"
                   }`}

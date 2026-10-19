@@ -1,7 +1,6 @@
 "use client";
 
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { Toaster } from "sonner";
 import { useAuthStore } from "@/store/authStore";
 
@@ -9,28 +8,37 @@ function AuthInitializer({ children }: { children: React.ReactNode }) {
   const initialize = useAuthStore((state) => state.initialize);
 
   useEffect(() => {
-    const cleanup = initialize();
-    return cleanup;
+    let cleanup: (() => void) | undefined;
+    // Yield to main thread for initial paint before starting auth subscription
+    const start = () => {
+      cleanup = initialize();
+    };
+
+    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+      const handle = (window as any).requestIdleCallback(start, { timeout: 1500 });
+      return () => {
+        (window as any).cancelIdleCallback(handle);
+        cleanup?.();
+      };
+    } else {
+      const timer = setTimeout(start, 50);
+      return () => {
+        clearTimeout(timer);
+        cleanup?.();
+      };
+    }
   }, [initialize]);
 
   return <>{children}</>;
 }
 
 export default function Providers({ children }: { children: React.ReactNode }) {
-  const [queryClient] = useState(() => new QueryClient({
-    defaultOptions: {
-      queries: {
-        staleTime: 60 * 1000, // 1 minute
-      },
-    },
-  }));
-
   return (
-    <QueryClientProvider client={queryClient}>
+    <>
       <AuthInitializer>
         {children}
       </AuthInitializer>
       <Toaster position="top-center" richColors />
-    </QueryClientProvider>
+    </>
   );
 }

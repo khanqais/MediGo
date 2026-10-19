@@ -1,21 +1,18 @@
 import type { Metadata } from "next";
-import { Inter, Plus_Jakarta_Sans } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import Providers from "@/components/providers";
 import StoreLayout from "@/components/layout/StoreLayout";
+import Footer from "@/components/layout/Footer";
 
-const inter = Inter({ 
-  subsets: ["latin"],
+const inter = localFont({
+  src: "../fonts/inter.woff2",
   variable: "--font-inter",
-  display: "optional",
+  display: "swap",
+  weight: "100 900",
+  fallback: ["system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "sans-serif"],
+  adjustFontFallback: "Arial",
   preload: true,
-});
-
-const plusJakarta = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  variable: "--font-plus-jakarta",
-  display: "optional",
-  preload: false,
 });
 
 export const metadata: Metadata = {
@@ -30,14 +27,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${plusJakarta.variable}`} suppressHydrationWarning>
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://dfnaesnbumckoiibmbil.supabase.co" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://dfnaesnbumckoiibmbil.supabase.co" />
       </head>
       <body className={`${inter.className} min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-primary/20 selection:text-primary-dark`}>
         <Providers>
-          <StoreLayout>{children}</StoreLayout>
+          <StoreLayout footer={<Footer />}>{children}</StoreLayout>
         </Providers>
       </body>
     </html>
