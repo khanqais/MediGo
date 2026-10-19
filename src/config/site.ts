@@ -12,12 +12,12 @@ export const siteConfig = {
 
   // Statutory Drug License & Compliance
   compliance: {
-    drugLicenseNumber: process.env.NEXT_PUBLIC_DRUG_LICENSE_NO || "PENDING-DRUG-LICENSE-NUMBER",
-    issuingAuthority: process.env.NEXT_PUBLIC_LICENSING_AUTHORITY || "PENDING-LICENSING-AUTHORITY",
+    drugLicenseNumber: process.env.NEXT_PUBLIC_DRUG_LICENSE_NO || "",
+    issuingAuthority: process.env.NEXT_PUBLIC_LICENSING_AUTHORITY || "",
     pharmacistAssistanceContact: process.env.NEXT_PUBLIC_SUPPORT_PHONE || "+91 1800-000-0000",
     supportEmail: process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "care@example.com",
-    registeredEntity: process.env.NEXT_PUBLIC_REGISTERED_ENTITY || "PENDING-REGISTERED-ENTITY-NAME",
-    gstNumber: process.env.NEXT_PUBLIC_GST_NUMBER || "PENDING-GST-NUMBER",
+    registeredEntity: process.env.NEXT_PUBLIC_REGISTERED_ENTITY || "",
+    gstNumber: process.env.NEXT_PUBLIC_GST_NUMBER || "",
   },
 
   // Mandatory Indian Medical Disclaimer
