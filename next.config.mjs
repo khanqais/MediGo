@@ -2,6 +2,7 @@ export default function nextConfig() {
   return {
     transpilePackages: ["@supabase/auth-js"],
     images: {
+      formats: ["image/avif", "image/webp"],
       remotePatterns: [
         {
           protocol: "https",
@@ -12,6 +13,7 @@ export default function nextConfig() {
           hostname: "**",
         },
       ],
+      minimumCacheTTL: 86400,
     },
     experimental: {
       optimizePackageImports: [
@@ -20,6 +22,11 @@ export default function nextConfig() {
         "@radix-ui/react-dialog",
         "@radix-ui/react-accordion",
         "@radix-ui/react-slider",
+        "@radix-ui/react-dropdown-menu",
+        "@radix-ui/react-popover",
+        "@radix-ui/react-select",
+        "@radix-ui/react-tooltip",
+        "sonner",
       ],
     },
     env: {

@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { motion } from "framer-motion";
+
 import { 
   Check, 
   ChevronRight, 
@@ -93,11 +93,8 @@ function OrderSuccessContent() {
 
   return (
     <div className="bg-slate-50 min-h-screen py-12 px-4 flex items-center justify-center">
-      <motion.div 
-        initial={{ scale: 0.94, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ type: "spring", duration: 0.5 }}
-        className="max-w-xl w-full bg-white p-6 sm:p-10 rounded-3xl shadow-xl border border-slate-200 text-center relative overflow-hidden"
+      <div 
+        className="max-w-xl w-full bg-white p-6 sm:p-10 rounded-3xl shadow-xl border border-slate-200 text-center relative overflow-hidden animate-[fadeScaleIn_0.4s_ease-out_forwards]"
       >
         {/* Top Gradient Ribbon */}
         <div className={`absolute top-0 left-0 w-full h-2.5 ${
@@ -112,17 +109,13 @@ function OrderSuccessContent() {
             ? "bg-amber-50 text-amber-600 border-amber-200"
             : "bg-green-50 text-primary border-green-200"
         }`}>
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ delay: 0.15, type: "spring", stiffness: 260, damping: 20 }}
-          >
+          <div className="animate-[popIn_0.35s_0.15s_ease-out_both]">
             {isPendingApproval ? (
               <FileText size={38} className="stroke-[2.5]" />
             ) : (
               <Check size={42} className="stroke-[3]" />
             )}
-          </motion.div>
+          </div>
         </div>
 
         <h1 className="text-2xl sm:text-3xl font-black text-slate-900 mb-2">
@@ -256,7 +249,7 @@ function OrderSuccessContent() {
             <ChevronRight size={16} />
           </Link>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 }

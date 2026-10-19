@@ -1,16 +1,19 @@
 import { Suspense } from "react";
+import dynamic from "next/dynamic";
 import HeroCarousel from "@/components/home/HeroCarousel";
 import TrustBadges from "@/components/home/TrustBadges";
-import CategoryGrid from "@/components/home/CategoryGrid";
-import OffersBanner from "@/components/home/OffersBanner";
 import FeaturedMedicines from "@/components/home/FeaturedMedicines";
 import FeaturedMedicinesSkeleton from "@/components/home/FeaturedMedicinesSkeleton";
-import PrescriptionUploadPromo from "@/components/home/PrescriptionUploadPromo";
-import HealthConcernsGrid from "@/components/home/HealthConcernsGrid";
-import HowItWorks from "@/components/home/HowItWorks";
-import Testimonials from "@/components/home/Testimonials";
-import AppDownloadBanner from "@/components/home/AppDownloadBanner";
-import FAQSection from "@/components/home/FAQSection";
+
+// Lazy-load below-the-fold sections so they don't block initial render
+const CategoryGrid = dynamic(() => import("@/components/home/CategoryGrid"), { ssr: true });
+const OffersBanner = dynamic(() => import("@/components/home/OffersBanner"), { ssr: true });
+const PrescriptionUploadPromo = dynamic(() => import("@/components/home/PrescriptionUploadPromo"), { ssr: true });
+const HealthConcernsGrid = dynamic(() => import("@/components/home/HealthConcernsGrid"), { ssr: true });
+const HowItWorks = dynamic(() => import("@/components/home/HowItWorks"), { ssr: true });
+const Testimonials = dynamic(() => import("@/components/home/Testimonials"), { ssr: true });
+const AppDownloadBanner = dynamic(() => import("@/components/home/AppDownloadBanner"), { ssr: true });
+const FAQSection = dynamic(() => import("@/components/home/FAQSection"), { ssr: true });
 
 export default function Home() {
   return (

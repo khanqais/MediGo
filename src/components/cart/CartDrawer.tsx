@@ -1,7 +1,6 @@
 "use client";
 
 import { useCartStore } from "@/store/cartStore";
-import { motion, AnimatePresence } from "framer-motion";
 import { X, Minus, Plus, Trash2, ArrowRight, Truck, ShoppingBag } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -50,23 +49,20 @@ export default function CartDrawer() {
   };
 
   return (
-    <AnimatePresence>
-      {isDrawerOpen && (
-        <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={closeDrawer}
-            className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 transition-opacity"
-          />
-          <motion.div
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ type: "spring", damping: 25, stiffness: 220 }}
-            className="fixed right-0 top-0 bottom-0 w-full sm:w-[440px] bg-white z-50 flex flex-col shadow-2xl"
-          >
+    <>
+      {/* Backdrop */}
+      <div
+        onClick={closeDrawer}
+        className={`fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 transition-opacity duration-300 ${
+          isDrawerOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        }`}
+      />
+      {/* Drawer panel */}
+      <div
+        className={`fixed right-0 top-0 bottom-0 w-full sm:w-[440px] bg-white z-50 flex flex-col shadow-2xl transition-transform duration-300 ease-in-out ${
+          isDrawerOpen ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
             {/* Drawer Header */}
             <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100">
               <div className="flex items-center gap-2">
@@ -260,9 +256,7 @@ export default function CartDrawer() {
                 </div>
               </div>
             )}
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+          </div>
+    </>
   );
 }

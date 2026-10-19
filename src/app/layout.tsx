@@ -7,13 +7,15 @@ import StoreLayout from "@/components/layout/StoreLayout";
 const inter = Inter({ 
   subsets: ["latin"],
   variable: "--font-inter",
-  display: "swap",
+  display: "optional",
+  preload: true,
 });
 
 const plusJakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
   variable: "--font-plus-jakarta",
-  display: "swap",
+  display: "optional",
+  preload: false,
 });
 
 export const metadata: Metadata = {
@@ -30,7 +32,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${plusJakarta.variable}`} suppressHydrationWarning>
       <head>
-        <link rel="preconnect" href="https://dfnaesnbumckoiibmbil.supabase.co" />
+        <link rel="preconnect" href="https://dfnaesnbumckoiibmbil.supabase.co" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://dfnaesnbumckoiibmbil.supabase.co" />
       </head>
       <body className={`${inter.className} min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-primary/20 selection:text-primary-dark`}>

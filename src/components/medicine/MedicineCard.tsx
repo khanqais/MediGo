@@ -10,7 +10,7 @@ import RatingStars from "@/components/shared/RatingStars";
 import { toast } from "sonner";
 import { isOtcMedicine, isOtcOnlyMode, OTC_ONLY_STOREFRONT_LABEL } from "@/lib/sales-mode";
 
-export default function MedicineCard({ medicine }: { medicine: Medicine }) {
+export default function MedicineCard({ medicine, priority = false }: { medicine: Medicine; priority?: boolean }) {
   const addItem = useCartStore((state) => state.addItem);
   const [isAdded, setIsAdded] = useState(false);
 
@@ -63,6 +63,8 @@ export default function MedicineCard({ medicine }: { medicine: Medicine }) {
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
               className="object-contain group-hover:scale-108 transition-transform duration-300"
               unoptimized={medicine.imageUrl.startsWith("http")}
+              priority={priority}
+              loading={priority ? undefined : "lazy"}
             />
           ) : (
             <div className="w-full h-full bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 text-xs font-semibold">

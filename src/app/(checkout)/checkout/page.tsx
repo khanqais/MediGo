@@ -10,7 +10,6 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { findBlockedOtcOnlyItem, isOtcOnlyMode, OTC_ONLY_ORDER_ERROR, OTC_ONLY_STOREFRONT_LABEL } from "@/lib/sales-mode";
 
@@ -376,9 +375,9 @@ export default function CheckoutPage() {
         )}
 
         <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
-          <AnimatePresence mode="wait">
+          <>
             {step === 1 && (
-              <motion.div key="step-1" className="p-6 sm:p-10">
+              <div className="p-6 sm:p-10">
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-2xl font-black flex items-center gap-2"><MapPin /> Select Address</h2>
                   <button onClick={() => setShowAddressForm(true)} className="text-primary font-bold">+ Add New</button>
@@ -419,11 +418,11 @@ export default function CheckoutPage() {
                 <button onClick={() => setStep(2)} disabled={addresses.length === 0} className="w-full bg-primary text-white py-3 rounded-2xl font-bold flex items-center justify-center gap-2">
                   Continue to Order Review <ArrowRight size={16} />
                 </button>
-              </motion.div>
+              </div>
             )}
 
             {step === 2 && (
-              <motion.div key="step-2" className="p-6 sm:p-10">
+              <div className="p-6 sm:p-10">
                 <h2 className="text-2xl font-black mb-6 flex items-center gap-2">
                   <CheckCircle2 className="text-primary" /> Review Order Items
                 </h2>
@@ -607,11 +606,11 @@ export default function CheckoutPage() {
                     {isValidating ? "Validating Cart & Prescription..." : "Continue to Payment"}
                   </button>
                 </div>
-              </motion.div>
+              </div>
             )}
 
             {step === 3 && validationSummary && (
-              <motion.div key="step-3" className="p-6 sm:p-10">
+              <div className="p-6 sm:p-10">
                 <h2 className="text-2xl font-black mb-6 flex items-center gap-2">
                   <Lock className="text-primary" /> Secure Payment
                 </h2>
@@ -658,9 +657,9 @@ export default function CheckoutPage() {
                     {isProcessing ? "Processing..." : `Place Order (₹${validationSummary.total_amount})`}
                   </button>
                 </div>
-              </motion.div>
+              </div>
             )}
-          </AnimatePresence>
+          </>
         </div>
       </div>
     </div>
