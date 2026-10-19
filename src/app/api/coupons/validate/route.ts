@@ -68,26 +68,21 @@ export async function POST(req: NextRequest) {
     }
 
     // Check usage limits
-    if (coupon.usage_limit) {
-      const { count } = await supabase
-        .from("coupon_redemptions")
-        .select("*", { count: 'exact', head: true })
-        .eq("coupon_id", coupon.id);
-        
-      if (count !== null && count >= coupon.usage_limit) {
+    if (coupon.usage_limit || coupon.per_user_limit) {
+      const [globalRes, userRes] = await Promise.all([
+        coupon.usage_limit
+          ? supabase.from("coupon_redemptions").select("*", { count: 'exact', head: true }).eq("coupon_id", coupon.id)
+          : Promise.resolve({ count: null }),
+        coupon.per_user_limit
+          ? supabase.from("coupon_redemptions").select("*", { count: 'exact', head: true }).eq("coupon_id", coupon.id).eq("user_id", user.id)
+          : Promise.resolve({ count: null }),
+      ]);
+
+      if (coupon.usage_limit && globalRes.count !== null && globalRes.count >= coupon.usage_limit) {
         return NextResponse.json({ success: false, message: "Coupon usage limit reached" }, { status: 400 });
       }
-    }
 
-    // Check per-user limit
-    if (coupon.per_user_limit) {
-      const { count } = await supabase
-        .from("coupon_redemptions")
-        .select("*", { count: 'exact', head: true })
-        .eq("coupon_id", coupon.id)
-        .eq("user_id", user.id);
-        
-      if (count !== null && count >= coupon.per_user_limit) {
+      if (coupon.per_user_limit && userRes.count !== null && userRes.count >= coupon.per_user_limit) {
         return NextResponse.json({ success: false, message: "You have reached the maximum usage limit for this coupon" }, { status: 400 });
       }
     }

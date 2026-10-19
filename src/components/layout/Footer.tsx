@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Facebook, Instagram, Twitter, Youtube, Pill, ShieldCheck, Award, PhoneCall, Mail, Clock, AlertTriangle } from "lucide-react";
 import { siteConfig } from "@/config/site";
 
@@ -109,31 +110,9 @@ export default function Footer() {
           </div>
         </div>
 
-        {/* Statutory Medical Disclaimer */}
-        <div className="mb-8 p-4 bg-slate-800/80 border border-slate-700/80 rounded-2xl flex items-start gap-3 text-xs text-slate-400 leading-relaxed">
-          <AlertTriangle size={18} className="text-amber-400 shrink-0 mt-0.5" />
-          <div>
-            <span className="font-bold text-slate-300 block mb-0.5">Statutory Medical Disclaimer</span>
-            <p>{siteConfig.medicalDisclaimer}</p>
-          </div>
-        </div>
 
-        {/* Non-Production Compliance Default Warning */}
-        {process.env.NODE_ENV !== "production" &&
-          (siteConfig.compliance.drugLicenseNumber.includes("PENDING") ||
-            siteConfig.compliance.registeredEntity.includes("PENDING") ||
-            siteConfig.compliance.issuingAuthority.includes("PENDING")) && (
-            <div className="mb-6 p-4 bg-amber-950/90 border border-amber-600 rounded-2xl flex items-start gap-3 text-xs text-amber-200">
-              <AlertTriangle size={18} className="text-amber-400 shrink-0 mt-0.5" />
-              <div>
-                <strong className="block text-amber-300 font-bold mb-1 uppercase tracking-wider text-[11px]">
-                  Non-Production Warning: Placeholder Licence Credentials Active
-                </strong>
-                The platform is using placeholder regulatory credentials (<span className="font-mono text-amber-100">{siteConfig.compliance.drugLicenseNumber}</span> / <span className="font-mono text-amber-100">{siteConfig.compliance.registeredEntity}</span>).
-                Configure <code className="font-mono text-amber-300">NEXT_PUBLIC_DRUG_LICENSE_NO</code>, <code className="font-mono text-amber-300">NEXT_PUBLIC_LICENSING_AUTHORITY</code>, and <code className="font-mono text-amber-300">NEXT_PUBLIC_REGISTERED_ENTITY</code> in your environment before serving production traffic.
-              </div>
-            </div>
-          )}
+
+
 
         {/* Bottom Bar */}
         <div className="border-t border-slate-800 pt-6 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-slate-400">
@@ -143,25 +122,7 @@ export default function Footer() {
             <p className="text-slate-400">Drug Licence No: <strong className="font-mono text-slate-300">{siteConfig.compliance.drugLicenseNumber}</strong></p>
           </div>
 
-          {/* Payment Icons */}
-          <div className="flex items-center flex-wrap justify-center gap-2">
-            <span className="bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-[11px] text-white font-medium">
-              Visa
-            </span>
-            <span className="bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-[11px] text-white font-medium">
-              Mastercard
-            </span>
-            <span className="bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-[11px] text-white font-medium">
-              RuPay
-            </span>
-            <span className="bg-green-950/80 border border-green-800/60 px-2 py-0.5 rounded text-[11px] text-green-400 font-bold">
-              COD Available
-            </span>
-            <img src="/products/PhonePay.jpg" alt="PhonePe" className="h-5 w-auto object-contain rounded bg-white p-0.5 shadow-xs" />
-            <img src="/products/gpay.jpg" alt="Google Pay" className="h-5 w-auto object-contain rounded bg-white p-0.5 shadow-xs" />
-            <img src="/products/bhim.png" alt="BHIM UPI" className="h-5 w-auto object-contain rounded bg-white p-0.5 shadow-xs" />
-            <img src="/products/cred.png" alt="CRED" className="h-5 w-auto object-contain rounded bg-black p-0.5 shadow-xs" />
-          </div>
+
         </div>
       </div>
     </footer>

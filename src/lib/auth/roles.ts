@@ -1,3 +1,4 @@
+import * as React from "react";
 import { NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { UserRole } from "@/types/user";
@@ -8,6 +9,20 @@ export interface AuthenticatedUser {
   role: UserRole;
   fullName?: string | null;
 }
+
+const requestCache =
+  typeof (React as any).cache === "function"
+    ? (React as any).cache
+    : <T extends (...args: any[]) => any>(fn: T): T => fn;
+
+const getProfile = requestCache(async (userId: string) => {
+  const adminClient = createAdminClient();
+  return adminClient
+    .from("profiles")
+    .select("id, email, full_name, role")
+    .eq("id", userId)
+    .single();
+});
 
 /**
  * Server-side role check for API route handlers and server actions.
@@ -27,13 +42,8 @@ export async function requireRole(allowedRoles: UserRole[]): Promise<Authenticat
     throw error;
   }
 
-  // Fetch the role from profiles using adminClient to ensure trusted server check
-  const adminClient = createAdminClient();
-  const { data: profile, error: profileError } = await adminClient
-    .from("profiles")
-    .select("id, email, full_name, role")
-    .eq("id", user.id)
-    .single();
+  // Fetch the role from profiles using adminClient to ensure trusted server check (cached per request)
+  const { data: profile, error: profileError } = await getProfile(user.id);
 
   if (profileError || !profile) {
     const error = new Error("PROFILE_NOT_FOUND");

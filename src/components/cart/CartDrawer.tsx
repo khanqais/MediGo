@@ -4,6 +4,7 @@ import { useCartStore } from "@/store/cartStore";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Minus, Plus, Trash2, ArrowRight, Truck, ShoppingBag } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect } from "react";
 import { isOtcMedicine, isOtcOnlyMode, OTC_ONLY_STOREFRONT_LABEL } from "@/lib/sales-mode";
 import { useRouter } from "next/navigation";
@@ -133,12 +134,15 @@ export default function CartDrawer() {
                     key={item.medicine.id} 
                     className="flex gap-3.5 p-3.5 bg-white border border-slate-200 rounded-2xl shadow-2xs hover:border-slate-300 transition"
                   >
-                    <div className="w-16 h-16 bg-slate-50 border border-slate-100 rounded-xl shrink-0 overflow-hidden flex items-center justify-center p-1">
+                    <div className="relative w-16 h-16 bg-slate-50 border border-slate-100 rounded-xl shrink-0 overflow-hidden flex items-center justify-center p-1">
                       {item.medicine.imageUrl ? (
-                        <img 
+                        <Image 
                           src={item.medicine.imageUrl} 
                           alt={item.medicine.name} 
-                          className="w-full h-full object-contain" 
+                          fill 
+                          sizes="64px" 
+                          className="object-contain" 
+                          unoptimized={item.medicine.imageUrl.startsWith("http")} 
                         />
                       ) : (
                         <div className="w-full h-full bg-slate-100 rounded flex items-center justify-center text-[10px] text-slate-400">

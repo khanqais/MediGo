@@ -1,13 +1,25 @@
 import { NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import Razorpay from "razorpay";
 import { z } from "zod";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 const createOrderSchema = z.object({
   order_id: z.string().uuid(),
 });
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  // Rate limit: 5 payment order creations per minute per IP (fail-closed)
+  const ip = getClientIp(request);
+  const rl = await rateLimit(`payment_create_${ip}`, 5, 60000, { failClosed: true });
+  if (!rl.success) {
+    return NextResponse.json(
+      { error: "Too many requests. Please try again later." },
+      { status: 429, headers: { "Retry-After": Math.ceil((rl.reset - Date.now()) / 1000).toString() } }
+    );
+  }
+
   try {
     const supabase = createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -26,18 +38,18 @@ export async function POST(request: Request) {
     const { order_id } = validation.data;
     const adminClient = createAdminClient();
 
-    const { data: order, error: orderError } = await adminClient
+    // FIX: Use user-scoped client with user_id constraint to prevent IDOR.
+    // This enforces ownership at the database level instead of relying on a
+    // post-hoc application-layer check after an admin-bypassed query.
+    const { data: order, error: orderError } = await supabase
       .from("orders")
       .select("*")
       .eq("id", order_id)
+      .eq("user_id", user.id)
       .single();
 
     if (orderError || !order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
-    }
-
-    if (order.user_id !== user.id) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     if (order.payment_method !== "ONLINE") {

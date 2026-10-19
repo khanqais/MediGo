@@ -1,8 +1,10 @@
+import { Suspense } from "react";
 import HeroCarousel from "@/components/home/HeroCarousel";
 import TrustBadges from "@/components/home/TrustBadges";
 import CategoryGrid from "@/components/home/CategoryGrid";
 import OffersBanner from "@/components/home/OffersBanner";
 import FeaturedMedicines from "@/components/home/FeaturedMedicines";
+import FeaturedMedicinesSkeleton from "@/components/home/FeaturedMedicinesSkeleton";
 import PrescriptionUploadPromo from "@/components/home/PrescriptionUploadPromo";
 import HealthConcernsGrid from "@/components/home/HealthConcernsGrid";
 import HowItWorks from "@/components/home/HowItWorks";
@@ -26,7 +28,9 @@ export default function Home() {
       <OffersBanner />
 
       {/* 5. Best Sellers (5-column product grid using 49 authentic catalogue images) */}
-      <FeaturedMedicines />
+      <Suspense fallback={<FeaturedMedicinesSkeleton />}>
+        <FeaturedMedicines />
+      </Suspense>
 
       {/* 6. Prescription Upload Promo Banner (full width) */}
       <PrescriptionUploadPromo />

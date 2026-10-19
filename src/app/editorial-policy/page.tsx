@@ -70,19 +70,6 @@ export default function EditorialPolicyPage() {
             </p>
           </section>
 
-          <section>
-            <h2 className="text-xl font-bold text-slate-900 mb-3">
-              4. Statutory Medical Disclaimer
-            </h2>
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 text-amber-900 text-xs sm:text-sm">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="text-amber-600 shrink-0 mt-0.5" size={20} />
-                <p>
-                  {siteConfig.medicalDisclaimer}
-                </p>
-              </div>
-            </div>
-          </section>
 
           <section>
             <h2 className="text-xl font-bold text-slate-900 mb-3">

@@ -42,27 +42,21 @@ export async function POST(request: Request) {
 
     const { items, address_id, payment_method, prescription_id } = validation.data;
 
-    // 1. Re-validate Address
-    const { data: address, error: addressError } = await supabase
-      .from("addresses")
-      .select("*")
-      .eq("id", address_id)
-      .eq("user_id", user.id)
-      .single();
+    // 1. Re-validate Address & 2. Re-validate Items, Schedule & Stock
+    const medicineIds = items.map(item => item.medicine_id);
+    const [addressResult, medicinesResult] = await Promise.all([
+      supabase.from("addresses").select("*").eq("id", address_id).eq("user_id", user.id).single(),
+      supabase.from("medicines").select(`
+        id, name, price, mrp, is_active, prescription_required, drug_schedule,
+        inventory (stock_quantity, reserved_quantity)
+      `).in("id", medicineIds)
+    ]);
+    const { data: address, error: addressError } = addressResult;
+    const { data: medicinesData, error: medicinesError } = medicinesResult;
 
     if (addressError || !address) {
       return NextResponse.json({ error: "Invalid address" }, { status: 400 });
     }
-
-    // 2. Re-validate Items, Schedule & Stock
-    const medicineIds = items.map(item => item.medicine_id);
-    const { data: medicinesData, error: medicinesError } = await supabase
-      .from("medicines")
-      .select(`
-        id, name, price, mrp, is_active, prescription_required, drug_schedule,
-        inventory (stock_quantity, reserved_quantity)
-      `)
-      .in("id", medicineIds);
 
     if (medicinesError || !medicinesData) {
       return NextResponse.json({ error: "Failed to fetch medicines data" }, { status: 500 });
@@ -179,8 +173,10 @@ export async function POST(request: Request) {
         
         if (now >= validFrom && now <= validTo && subtotal >= coupon.min_order_amount) {
           // Check limits
-          const { count: globalCount } = await supabase.from("coupon_redemptions").select("*", { count: 'exact', head: true }).eq("coupon_id", coupon.id);
-          const { count: userCount } = await supabase.from("coupon_redemptions").select("*", { count: 'exact', head: true }).eq("coupon_id", coupon.id).eq("user_id", user.id);
+          const [{ count: globalCount }, { count: userCount }] = await Promise.all([
+            supabase.from("coupon_redemptions").select("*", { count: 'exact', head: true }).eq("coupon_id", coupon.id),
+            supabase.from("coupon_redemptions").select("*", { count: 'exact', head: true }).eq("coupon_id", coupon.id).eq("user_id", user.id)
+          ]);
           
           if ((!coupon.usage_limit || (globalCount || 0) < coupon.usage_limit) && 
               (!coupon.per_user_limit || (userCount || 0) < coupon.per_user_limit)) {

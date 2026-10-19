@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import MedicineCard from "@/components/medicine/MedicineCard";
 import { Medicine } from "@/types/medicine";
 import { 
@@ -209,7 +210,7 @@ export default function OffersPage() {
           <div className="grid md:grid-cols-4 gap-4">
             <div className="p-4 rounded-2xl bg-purple-50/70 border border-purple-100 flex items-center gap-3">
               <span className="p-1.5 bg-white border border-slate-200 rounded-xl shadow-2xs shrink-0">
-                <img src="/products/PhonePay.jpg" alt="PhonePe" className="h-6 w-auto object-contain" />
+                <Image src="/products/PhonePay.jpg" alt="PhonePe" width={48} height={24} className="h-6 w-auto object-contain" />
               </span>
               <div>
                 <h4 className="font-bold text-sm text-slate-900">PhonePe Cashback</h4>
@@ -219,7 +220,7 @@ export default function OffersPage() {
 
             <div className="p-4 rounded-2xl bg-blue-50/70 border border-blue-100 flex items-center gap-3">
               <span className="p-1.5 bg-white border border-slate-200 rounded-xl shadow-2xs shrink-0">
-                <img src="/products/gpay.jpg" alt="Google Pay" className="h-6 w-auto object-contain" />
+                <Image src="/products/gpay.jpg" alt="Google Pay" width={48} height={24} className="h-6 w-auto object-contain" />
               </span>
               <div>
                 <h4 className="font-bold text-sm text-slate-900">Google Pay Rewards</h4>
@@ -229,7 +230,7 @@ export default function OffersPage() {
 
             <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-100 flex items-center gap-3">
               <span className="p-1.5 bg-white border border-slate-200 rounded-xl shadow-2xs shrink-0">
-                <img src="/products/bhim.png" alt="BHIM UPI" className="h-6 w-auto object-contain" />
+                <Image src="/products/bhim.png" alt="BHIM UPI" width={48} height={24} className="h-6 w-auto object-contain" />
               </span>
               <div>
                 <h4 className="font-bold text-sm text-slate-900">BHIM UPI Instant</h4>
@@ -239,7 +240,7 @@ export default function OffersPage() {
 
             <div className="p-4 rounded-2xl bg-slate-900 text-white flex items-center gap-3">
               <span className="p-1.5 bg-black border border-slate-700 rounded-xl shadow-2xs shrink-0">
-                <img src="/products/cred.png" alt="CRED" className="h-6 w-auto object-contain" />
+                <Image src="/products/cred.png" alt="CRED" width={48} height={24} className="h-6 w-auto object-contain" />
               </span>
               <div>
                 <h4 className="font-bold text-sm text-white">CRED Pay Boost</h4>

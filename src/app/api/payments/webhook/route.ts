@@ -3,6 +3,12 @@ import { createAdminClient } from "@/lib/supabase/server";
 import crypto from "crypto";
 
 export async function POST(request: Request) {
+  // Guard: webhook secret must be configured or every request would pass signature check
+  if (!process.env.RAZORPAY_WEBHOOK_SECRET) {
+    console.error("[payments/webhook] RAZORPAY_WEBHOOK_SECRET is not configured");
+    return NextResponse.json({ error: "Webhook service not configured" }, { status: 500 });
+  }
+
   try {
     const signature = request.headers.get("x-razorpay-signature");
     const eventId = request.headers.get("x-razorpay-event-id");
@@ -14,7 +20,7 @@ export async function POST(request: Request) {
     const bodyText = await request.text();
 
     const expectedSignature = crypto
-      .createHmac("sha256", process.env.RAZORPAY_WEBHOOK_SECRET!)
+      .createHmac("sha256", process.env.RAZORPAY_WEBHOOK_SECRET)
       .update(bodyText)
       .digest("hex");
 
@@ -89,15 +95,13 @@ export async function POST(request: Request) {
 
       // @ts-ignore
       if (dbPayment.orders?.payment_status !== "PAID") {
-        await adminClient
-          .from("payments")
-          .update({ status: "FAILED" })
-          .eq("id", dbPayment.id);
-          
-        await adminClient
-          .from("orders")
-          .update({ payment_status: "FAILED" })
-          .eq("id", dbPayment.order_id);
+        // FIX: Use a single RPC call so both the payments and orders tables are
+        // updated atomically. Previously two separate awaits meant a crash between
+        // them left the database in an inconsistent state (payment FAILED but
+        // order still PENDING).
+        await adminClient.rpc("mark_payment_failed", {
+          p_razorpay_order_id: razorpay_order_id,
+        });
       }
     }
 

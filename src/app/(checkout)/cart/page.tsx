@@ -16,6 +16,7 @@ import {
   Sparkles
 } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { isOtcMedicine, isOtcOnlyMode, OTC_ONLY_STOREFRONT_LABEL } from "@/lib/sales-mode";
@@ -158,12 +159,15 @@ export default function CartPage() {
                 {items.map((item) => (
                   <div key={item.medicine.id} className="py-5 first:pt-0 last:pb-0 flex flex-col sm:flex-row gap-4 sm:gap-6">
                     {/* Item Image */}
-                    <div className="w-20 h-20 sm:w-24 sm:h-24 bg-slate-50 border border-slate-100 rounded-2xl shrink-0 flex items-center justify-center p-2 overflow-hidden shadow-2xs">
+                    <div className="relative w-20 h-20 sm:w-24 sm:h-24 bg-slate-50 border border-slate-100 rounded-2xl shrink-0 flex items-center justify-center p-2 overflow-hidden shadow-2xs">
                       {item.medicine.imageUrl ? (
-                        <img 
+                        <Image 
                           src={item.medicine.imageUrl} 
                           alt={item.medicine.name} 
-                          className="w-full h-full object-contain" 
+                          fill 
+                          sizes="80px" 
+                          className="object-contain" 
+                          unoptimized={item.medicine.imageUrl.startsWith("http")} 
                         />
                       ) : (
                         <div className="w-16 h-16 bg-slate-200 rounded" />

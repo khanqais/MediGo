@@ -2,27 +2,28 @@
 
 import { useCartStore } from "@/store/cartStore";
 import { Medicine } from "@/types/medicine";
-import { 
-  AlertCircle, 
+import {
+  AlertCircle,
   AlertTriangle,
-  ChevronRight, 
-  Minus, 
-  Plus, 
-  ShoppingCart, 
-  Star, 
-  ShieldCheck, 
-  ArrowLeft, 
-  Truck, 
-  RotateCcw, 
-  Check, 
-  Copy, 
-  Tag, 
-  MapPin, 
+  ChevronRight,
+  Minus,
+  Plus,
+  ShoppingCart,
+  Star,
+  ShieldCheck,
+  ArrowLeft,
+  Truck,
+  RotateCcw,
+  Check,
+  Copy,
+  Tag,
+  MapPin,
   Sparkles,
   Zap,
   Package
 } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { siteConfig } from "@/config/site";
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -39,7 +40,7 @@ export default function MedicineDetailPage({ params }: { params: { slug: string 
   const [pincodeStatus, setPincodeStatus] = useState<string | null>(null);
   const [isCheckingPincode, setIsCheckingPincode] = useState(false);
   const [copiedCoupon, setCopiedCoupon] = useState(false);
-  
+
   const [medicine, setMedicine] = useState<Medicine | null>(null);
   const [similarMedicines, setSimilarMedicines] = useState<Medicine[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,7 +62,7 @@ export default function MedicineDetailPage({ params }: { params: { slug: string 
         const json = await res.json();
         const medData = json.data;
         setMedicine(medData);
-        
+
         // Substitutes from backend
         if (json.substitutes && json.substitutes.length > 0) {
           setSimilarMedicines(json.substitutes);
@@ -163,7 +164,7 @@ export default function MedicineDetailPage({ params }: { params: { slug: string 
         {/* Main Product Card */}
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-8 lg:p-10 mb-10">
           <div className="grid lg:grid-cols-12 gap-8 lg:gap-12">
-            
+
             {/* Left Gallery (5 cols) */}
             <div className="lg:col-span-5 flex flex-col gap-4">
               {/* Main Image Viewport with Zoom */}
@@ -195,15 +196,19 @@ export default function MedicineDetailPage({ params }: { params: { slug: string 
                 </div>
 
                 {activeImage ? (
-                  <img 
-                    src={activeImage} 
+                  <Image
+                    src={activeImage}
                     alt={medicine.name}
-                    className="w-full h-full object-contain group-hover:scale-125 transition-transform duration-500 ease-out cursor-crosshair"
+                    fill
+                    sizes="(max-width: 1024px) 100vw, 500px"
+                    className="object-contain p-6 group-hover:scale-125 transition-transform duration-500 ease-out cursor-crosshair"
+                    priority
+                    unoptimized={activeImage.startsWith("http")}
                   />
                 ) : (
                   <div className="w-full h-full bg-slate-200 rounded-lg animate-pulse" />
                 )}
-                
+
                 <div className="absolute bottom-3 right-3 bg-white/90 backdrop-blur-xs text-[10px] text-slate-500 font-medium px-2 py-1 rounded-md border border-slate-200 shadow-xs pointer-events-none">
                   Hover to zoom
                 </div>
@@ -216,11 +221,17 @@ export default function MedicineDetailPage({ params }: { params: { slug: string 
                     key={idx}
                     type="button"
                     onClick={() => setActiveImage(img)}
-                    className={`relative w-20 h-20 rounded-xl border-2 p-1.5 bg-slate-50 overflow-hidden transition-all duration-200 ${
-                      activeImage === img ? "border-primary shadow-sm scale-102" : "border-slate-200 hover:border-slate-300 opacity-80"
-                    }`}
+                    className={`relative w-20 h-20 rounded-xl border-2 p-1.5 bg-slate-50 overflow-hidden transition-all duration-200 ${activeImage === img ? "border-primary shadow-sm scale-102" : "border-slate-200 hover:border-slate-300 opacity-80"
+                      }`}
                   >
-                    <img src={img} alt={`${medicine.name} angle ${idx + 1}`} className="w-full h-full object-contain" />
+                    <Image
+                      src={img}
+                      alt={`${medicine.name} angle ${idx + 1}`}
+                      fill
+                      sizes="80px"
+                      className="object-contain p-1.5"
+                      unoptimized={img.startsWith("http")}
+                    />
                   </button>
                 ))}
               </div>
@@ -255,8 +266,8 @@ export default function MedicineDetailPage({ params }: { params: { slug: string 
               <div className="mb-4 p-3 bg-slate-50 rounded-xl border border-slate-200/80 flex flex-wrap items-center justify-between gap-2">
                 <div className="text-xs text-slate-600">
                   Active Composition:{" "}
-                  <Link 
-                    href={`/search?query=${encodeURIComponent(medicine.composition)}`} 
+                  <Link
+                    href={`/search?query=${encodeURIComponent(medicine.composition)}`}
                     className="font-bold text-slate-900 hover:text-primary hover:underline transition-colors"
                   >
                     {medicine.composition}
@@ -369,7 +380,7 @@ export default function MedicineDetailPage({ params }: { params: { slug: string 
               {/* Quantity & CTA Buttons */}
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-6">
                 <div className="flex items-center border border-slate-300 rounded-xl bg-white h-12 w-fit shadow-xs">
-                  <button 
+                  <button
                     onClick={() => setQty(Math.max(1, qty - 1))}
                     disabled={medicine.drugSchedule === "X"}
                     className="px-3.5 h-full text-slate-600 hover:text-primary hover:bg-slate-50 transition rounded-l-xl disabled:opacity-40"
@@ -378,7 +389,7 @@ export default function MedicineDetailPage({ params }: { params: { slug: string 
                     <Minus size={16} />
                   </button>
                   <span className="w-10 text-center font-bold text-slate-900 text-sm">{qty}</span>
-                  <button 
+                  <button
                     onClick={() => setQty(qty + 1)}
                     disabled={medicine.drugSchedule === "X"}
                     className="px-3.5 h-full text-slate-600 hover:text-primary hover:bg-slate-50 transition rounded-r-xl disabled:opacity-40"
@@ -398,7 +409,7 @@ export default function MedicineDetailPage({ params }: { params: { slug: string 
                   </div>
                 ) : (
                   <>
-                    <button 
+                    <button
                       onClick={handleAddToCart}
                       className="flex-1 h-12 bg-primary text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-primary-dark transition shadow-md hover:shadow-lg active:scale-[0.98] text-sm"
                     >
@@ -406,7 +417,7 @@ export default function MedicineDetailPage({ params }: { params: { slug: string 
                       Add to Cart • ₹{medicine.price * qty}
                     </button>
 
-                    <button 
+                    <button
                       onClick={handleBuyNow}
                       className="h-12 px-6 bg-accent hover:bg-orange-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition shadow-md hover:shadow-lg active:scale-[0.98] text-sm"
                     >
@@ -423,8 +434,8 @@ export default function MedicineDetailPage({ params }: { params: { slug: string 
                   <MapPin size={14} className="text-primary" /> Delivery & Pincode Checker
                 </span>
                 <form onSubmit={handleCheckPincode} className="flex gap-2 max-w-sm mb-2">
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     maxLength={6}
                     value={pincode}
                     onChange={(e) => setPincode(e.target.value)}
@@ -454,14 +465,7 @@ export default function MedicineDetailPage({ params }: { params: { slug: string 
           </div>
         </div>
 
-        {/* Statutory Medical Disclaimer Banner */}
-        <div className="bg-amber-50/90 border border-amber-200 rounded-2xl p-4 sm:p-5 mb-8 flex items-start gap-3.5 text-xs sm:text-sm text-amber-900 leading-relaxed shadow-2xs">
-          <AlertTriangle className="text-amber-600 shrink-0 mt-0.5" size={20} />
-          <div>
-            <strong className="font-bold text-amber-950 block mb-0.5">Statutory Medical Disclaimer</strong>
-            <p className="text-amber-900/90">{siteConfig.medicalDisclaimer}</p>
-          </div>
-        </div>
+
 
         {/* Detailed Tabs: Overview, Dosage, Side Effects, Standards */}
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 sm:p-10 mb-12">
@@ -474,7 +478,7 @@ export default function MedicineDetailPage({ params }: { params: { slug: string 
                 { id: "specifications", label: "Drug Specifications" },
                 { id: "faqs", label: "FAQs" },
               ].map((tab) => (
-                <Tabs.Trigger 
+                <Tabs.Trigger
                   key={tab.id}
                   value={tab.id}
                   className="pb-4 text-sm font-bold text-slate-500 hover:text-slate-900 data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-primary capitalize whitespace-nowrap outline-none transition-colors"
@@ -483,7 +487,7 @@ export default function MedicineDetailPage({ params }: { params: { slug: string 
                 </Tabs.Trigger>
               ))}
             </Tabs.List>
-            
+
             <Tabs.Content value="description" className="text-slate-700 leading-relaxed outline-none text-sm sm:text-base space-y-4">
               <h3 className="font-bold text-slate-900 text-lg">Product Overview</h3>
               <p>{medicine.description}</p>
@@ -572,14 +576,14 @@ export default function MedicineDetailPage({ params }: { params: { slug: string 
                 <h2 className="text-xl sm:text-2xl font-black text-slate-900">Similar Medicines & Substitutes</h2>
                 <p className="text-xs sm:text-sm text-slate-500">Other recommended generic formulations in {medicine.category.replace("-", " ")}</p>
               </div>
-              <Link 
-                href={`/categories/${medicine.category}`} 
+              <Link
+                href={`/categories/${medicine.category}`}
                 className="text-xs sm:text-sm font-bold text-primary hover:underline flex items-center gap-1"
               >
                 View all <ChevronRight size={16} />
               </Link>
             </div>
-            
+
             {(medicine.drugSchedule === "H" || medicine.drugSchedule === "H1" || medicine.prescriptionRequired) && (
               <div className="mb-4 p-3 bg-amber-50 text-amber-800 text-xs sm:text-sm rounded-xl border border-amber-200">
                 <strong className="font-bold">Medical Disclaimer:</strong> This is a prescription medicine. Please consult your doctor or pharmacist before switching to a substitute, even if the composition is the same.

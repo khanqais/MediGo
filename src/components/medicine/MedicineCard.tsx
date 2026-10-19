@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useState } from "react";
 import { Medicine } from "@/types/medicine";
 import { useCartStore } from "@/store/cartStore";
@@ -55,11 +56,13 @@ export default function MedicineCard({ medicine }: { medicine: Medicine }) {
       >
         <div className="absolute inset-0 flex items-center justify-center p-3">
           {medicine.imageUrl ? (
-            <img 
+            <Image 
               src={medicine.imageUrl} 
               alt={medicine.name}
-              className="w-full h-full object-contain group-hover:scale-108 transition-transform duration-300"
-              loading="lazy"
+              fill
+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+              className="object-contain group-hover:scale-108 transition-transform duration-300"
+              unoptimized={medicine.imageUrl.startsWith("http")}
             />
           ) : (
             <div className="w-full h-full bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 text-xs font-semibold">

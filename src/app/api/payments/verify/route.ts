@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import crypto from "crypto";
 import Razorpay from "razorpay";
 import { z } from "zod";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 const verifySchema = z.object({
   razorpay_order_id: z.string(),
@@ -10,7 +12,23 @@ const verifySchema = z.object({
   razorpay_signature: z.string(),
 });
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  // Rate limit: 10 verification attempts per minute per IP (fail-closed)
+  const ip = getClientIp(request);
+  const rl = await rateLimit(`payment_verify_${ip}`, 10, 60000, { failClosed: true });
+  if (!rl.success) {
+    return NextResponse.json(
+      { error: "Too many requests. Please try again later." },
+      { status: 429, headers: { "Retry-After": Math.ceil((rl.reset - Date.now()) / 1000).toString() } }
+    );
+  }
+
+  // Guard: env vars must be present before any crypto operation
+  if (!process.env.RAZORPAY_KEY_SECRET || !process.env.RAZORPAY_KEY_ID) {
+    console.error("[payments/verify] RAZORPAY_KEY_SECRET or RAZORPAY_KEY_ID is not configured");
+    return NextResponse.json({ error: "Payment service not configured" }, { status: 500 });
+  }
+
   try {
     const supabase = createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -47,7 +65,7 @@ export async function POST(request: Request) {
     // Verify signature
     const text = `${razorpay_order_id}|${razorpay_payment_id}`;
     const expectedSignature = crypto
-      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET!)
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
       .update(text)
       .digest("hex");
 
@@ -66,8 +84,8 @@ export async function POST(request: Request) {
     }
 
     const razorpay = new Razorpay({
-      key_id: process.env.RAZORPAY_KEY_ID!,
-      key_secret: process.env.RAZORPAY_KEY_SECRET!,
+      key_id: process.env.RAZORPAY_KEY_ID,
+      key_secret: process.env.RAZORPAY_KEY_SECRET,
     });
 
     const rzpPayment = await razorpay.payments.fetch(razorpay_payment_id);

@@ -21,28 +21,98 @@ function slugify(text: string): string {
     .replace(/-+$/, "");
 }
 
+const optionalString = z.string().optional().nullable();
+
+const numberField = (label: string) =>
+  z.preprocess(
+    (value) => (typeof value === "string" && value.trim() !== "" ? Number(value) : value),
+    z
+      .number({
+        required_error: `${label} is required`,
+        invalid_type_error: `${label} must be a valid number`,
+      })
+      .positive(`${label} must be a positive number`)
+  );
+
+const bulkMedicineRowSchema = z.object({
+  name: z.string().trim().min(1, "Medicine name is required"),
+  brand: z.string().trim().min(1, "Brand is required"),
+  composition: z.string().trim().min(1, "Composition / salt is required"),
+  slug: z.string().trim().optional().default(""),
+  generic_name: optionalString,
+  genericName: optionalString,
+  category_id: z.preprocess(
+    (value) => (value === "" ? null : value),
+    z.string().uuid("Invalid category ID").optional().nullable()
+  ),
+  categoryId: z.preprocess(
+    (value) => (value === "" ? null : value),
+    z.string().uuid("Invalid category ID").optional().nullable()
+  ),
+  mrp: numberField("MRP"),
+  price: numberField("Price"),
+  stock: z.preprocess(
+    (value) => {
+      if (value === undefined || value === null || (typeof value === "string" && value.trim() === "")) return 0;
+      return typeof value === "string" ? Number(value) : value;
+    },
+    z
+      .number({ invalid_type_error: "Stock must be a valid number" })
+      .nonnegative("Stock must be 0 or higher")
+  ),
+  reorderLevel: z.preprocess(
+    (value) => {
+      if (value === undefined || value === null || (typeof value === "string" && value.trim() === "")) return 10;
+      return typeof value === "string" ? Number(value) : value;
+    },
+    z
+      .number({ invalid_type_error: "Reorder level must be a valid number" })
+      .int("Reorder level must be a whole number")
+      .nonnegative("Reorder level must be 0 or higher")
+  ),
+  drug_schedule: optionalString,
+  drugSchedule: optionalString,
+  manufacturer: optionalString,
+  pack_size: optionalString,
+  packSize: optionalString,
+  dosage: optionalString,
+  description: optionalString,
+  directions: optionalString,
+  warnings: optionalString,
+  image_url: optionalString,
+  imageUrl: optionalString,
+  is_active: z.preprocess(
+    (value) => (typeof value === "string" ? value.toLowerCase() === "true" : value),
+    z.boolean().optional()
+  ),
+  batch_number: optionalString,
+  batchNumber: optionalString,
+  expiry_date: optionalString,
+  expiryDate: optionalString,
+});
+
 export async function POST(request: Request) {
   const { auth, errorResponse } = await verifyRole(["admin"]);
   if (errorResponse) return errorResponse;
 
   try {
     const body = await request.json();
-    const rows = body.rows;
-    const dryRun = Boolean(body.dryRun);
 
-    if (!Array.isArray(rows) || rows.length === 0) {
+    // Validate top-level request shape with Zod before any processing
+    const bodySchema = z.object({
+      rows: z.array(z.record(z.unknown())).min(1, "rows must be a non-empty array").max(500, "Maximum bulk batch size is 500 medicines"),
+      dryRun: z.boolean().optional().default(false),
+    });
+    const bodyParsed = bodySchema.safeParse(body);
+    if (!bodyParsed.success) {
       return NextResponse.json(
-        { error: "Invalid payload: 'rows' must be a non-empty array of medicine objects" },
+        { error: "Invalid payload", details: bodyParsed.error.flatten() },
         { status: 400 }
       );
     }
 
-    if (rows.length > 500) {
-      return NextResponse.json(
-        { error: "Maximum bulk batch size is 500 medicines at a time" },
-        { status: 400 }
-      );
-    }
+    const rows = bodyParsed.data.rows;
+    const dryRun = bodyParsed.data.dryRun;
 
     const adminClient = createAdminClient();
 
@@ -57,55 +127,61 @@ export async function POST(request: Request) {
     const rowErrors: RowValidationError[] = [];
     const validRowsToInsert: any[] = [];
 
-    rows.forEach((rawRow: any, index: number) => {
+    rows.forEach((rawRow, index) => {
       const rowNum = index + 1;
+      const parsed = bulkMedicineRowSchema.safeParse(rawRow);
+
+      if (!parsed.success) {
+        const errors = parsed.error.issues.map((issue) =>
+          issue.path.length > 0 ? `${issue.path.join(".")}: ${issue.message}` : issue.message
+        );
+        rowErrors.push({
+          row: rowNum,
+          name: typeof rawRow.name === "string" && rawRow.name.trim() ? rawRow.name : `Row ${rowNum}`,
+          errors,
+        });
+        return;
+      }
+
+      const data = parsed.data;
       const errors: string[] = [];
 
-      const name = String(rawRow.name || "").trim();
-      const brand = String(rawRow.brand || "").trim();
-      const composition = String(rawRow.composition || "").trim();
-      let slug = String(rawRow.slug || "").trim();
+      const name = data.name;
+      const brand = data.brand;
+      const composition = data.composition;
+      let slug = data.slug;
 
-      if (!name) errors.push("Medicine name is required");
-      if (!brand) errors.push("Brand is required");
-      if (!composition) errors.push("Composition / salt is required");
-
-      if (!slug && name) {
+      if (!slug) {
         slug = slugify(name);
       }
 
       if (!slug) {
         errors.push("Invalid or empty slug");
-      } else {
+      } else if (existingSlugs.has(slug) || batchSlugs.has(slug)) {
+        // If collision, try suffixing with brand or random salt
+        slug = `${slug}-${slugify(brand) || Math.random().toString(36).substring(2, 6)}`;
         if (existingSlugs.has(slug) || batchSlugs.has(slug)) {
-          // If collision, try suffixing with brand or random salt
-          slug = `${slug}-${slugify(brand) || Math.random().toString(36).substring(2, 6)}`;
-          if (existingSlugs.has(slug) || batchSlugs.has(slug)) {
-            errors.push(`Duplicate slug '${slug}' already exists`);
-          }
+          errors.push(`Duplicate slug '${slug}' already exists`);
         }
       }
 
-      const mrp = Number(rawRow.mrp);
-      const price = Number(rawRow.price);
-      const stock = rawRow.stock !== undefined && rawRow.stock !== "" ? Number(rawRow.stock) : 0;
-      const reorderLevel = rawRow.reorderLevel !== undefined && rawRow.reorderLevel !== "" ? Number(rawRow.reorderLevel) : 10;
+      const mrp = data.mrp;
+      const price = data.price;
+      const stock = data.stock;
+      const reorderLevel = data.reorderLevel;
 
-      if (isNaN(mrp) || mrp <= 0) errors.push("MRP must be a positive number");
-      if (isNaN(price) || price <= 0) errors.push("Price must be a positive number");
-      if (!isNaN(mrp) && !isNaN(price) && price > mrp) {
+      if (price > mrp) {
         errors.push(`Selling price (₹${price}) cannot exceed MRP (₹${mrp})`);
       }
-      if (isNaN(stock) || stock < 0) errors.push("Stock must be 0 or higher");
 
-      let drugSchedule = String(rawRow.drug_schedule || rawRow.drugSchedule || "OTC").trim().toUpperCase();
+      let drugSchedule = String(data.drug_schedule || data.drugSchedule || "OTC").trim().toUpperCase();
       if (!["OTC", "H", "H1", "X"].includes(drugSchedule)) {
         errors.push(`Invalid drug schedule '${drugSchedule}'. Must be OTC, H, H1, or X`);
         drugSchedule = "OTC";
       }
 
-      const batchNumber = String(rawRow.batch_number || rawRow.batchNumber || "").trim();
-      const expiryDate = String(rawRow.expiry_date || rawRow.expiryDate || "").trim();
+      const batchNumber = String(data.batch_number || data.batchNumber || "").trim();
+      const expiryDate = String(data.expiry_date || data.expiryDate || "").trim();
 
       if (stock > 0) {
         if (!batchNumber) errors.push("batch_number is required when stock > 0");
@@ -118,6 +194,7 @@ export async function POST(request: Request) {
         batchSlugs.add(slug);
         const discountPercentage = mrp > 0 ? Math.round(((mrp - price) / mrp) * 100) : 0;
         const prescriptionRequired = drugSchedule === "H" || drugSchedule === "H1" || drugSchedule === "X";
+        const imageUrl = data.image_url || data.imageUrl || null;
 
         validRowsToInsert.push({
           rowNum,
@@ -125,23 +202,23 @@ export async function POST(request: Request) {
             name,
             slug,
             brand,
-            generic_name: rawRow.generic_name || rawRow.genericName || null,
+            generic_name: data.generic_name || data.genericName || null,
             composition,
-            category_id: rawRow.category_id || rawRow.categoryId || null,
+            category_id: data.category_id || data.categoryId || null,
             mrp,
             price,
             discount_percentage: discountPercentage,
             drug_schedule: drugSchedule,
             prescription_required: prescriptionRequired,
-            manufacturer: rawRow.manufacturer || null,
-            pack_size: rawRow.pack_size || rawRow.packSize || null,
-            dosage: rawRow.dosage || null,
-            description: rawRow.description || null,
-            directions: rawRow.directions || null,
-            warnings: rawRow.warnings || null,
-            image_url: rawRow.image_url || rawRow.imageUrl || null,
-            images: rawRow.image_url ? [rawRow.image_url] : [],
-            is_active: rawRow.is_active !== undefined ? Boolean(rawRow.is_active) : true,
+            manufacturer: data.manufacturer || null,
+            pack_size: data.pack_size || data.packSize || null,
+            dosage: data.dosage || null,
+            description: data.description || null,
+            directions: data.directions || null,
+            warnings: data.warnings || null,
+            image_url: imageUrl,
+            images: imageUrl ? [imageUrl] : [],
+            is_active: data.is_active ?? true,
           },
           stock,
           reorderLevel,

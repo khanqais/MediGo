@@ -14,11 +14,17 @@ export async function GET(request: Request) {
     today.setUTCHours(0, 0, 0, 0);
     const todayIso = today.toISOString();
 
-    // 1. Fetch today's orders
-    const { data: todayOrders, error: todayOrdersError } = await adminClient
-      .from("orders")
-      .select("id, total_amount, status, payment_status, payment_method")
-      .gte("created_at", todayIso);
+    const [
+      { data: todayOrders, error: todayOrdersError },
+      { count: pendingRxCount, error: rxError },
+      { data: allInventory, error: invError },
+      { data: recentOrders, error: recentOrdersError },
+    ] = await Promise.all([
+      adminClient.from("orders").select("id, total_amount, status, payment_status, payment_method").gte("created_at", todayIso),
+      adminClient.from("prescriptions").select("*", { count: "exact", head: true }).eq("status", "PENDING"),
+      adminClient.from("inventory").select(`id, stock_quantity, reorder_level, medicines:medicine_id (id, name, brand, slug, drug_schedule, composition, price)`),
+      adminClient.from("orders").select(`id, total_amount, status, payment_status, payment_method, created_at, profiles:user_id (id, full_name, email, phone)`).order("created_at", { ascending: false }).limit(10)
+    ]);
 
     if (todayOrdersError) {
       console.error("Error fetching today's orders:", todayOrdersError);
@@ -34,33 +40,9 @@ export async function GET(request: Request) {
       )
       .reduce((acc, curr) => acc + Number(curr.total_amount || 0), 0);
 
-    // 2. Fetch pending prescriptions count
-    const { count: pendingRxCount, error: rxError } = await adminClient
-      .from("prescriptions")
-      .select("*", { count: "exact", head: true })
-      .eq("status", "PENDING");
-
     if (rxError) {
       console.error("Error counting pending prescriptions:", rxError);
     }
-
-    // 3. Fetch low stock items (stock_quantity <= reorder_level)
-    const { data: allInventory, error: invError } = await adminClient
-      .from("inventory")
-      .select(`
-        id,
-        stock_quantity,
-        reorder_level,
-        medicines:medicine_id (
-          id,
-          name,
-          brand,
-          slug,
-          drug_schedule,
-          composition,
-          price
-        )
-      `);
 
     if (invError) {
       console.error("Error fetching inventory:", invError);
@@ -82,21 +64,6 @@ export async function GET(request: Request) {
       .sort((a, b) => a.stockQuantity - b.stockQuantity);
 
     const lowStockCount = lowStockItems.length;
-
-    // 4. Fetch recent 10 orders
-    const { data: recentOrders, error: recentOrdersError } = await adminClient
-      .from("orders")
-      .select(`
-        id,
-        total_amount,
-        status,
-        payment_status,
-        payment_method,
-        created_at,
-        profiles:user_id (id, full_name, email, phone)
-      `)
-      .order("created_at", { ascending: false })
-      .limit(10);
 
     if (recentOrdersError) {
       console.error("Error fetching recent orders:", recentOrdersError);
