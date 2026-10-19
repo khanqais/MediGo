@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 
 /** Map Supabase error codes/messages to user-friendly messages without leaking internals */
 function getUserFriendlyError(error: { message: string; status?: number }): string {
@@ -115,8 +116,26 @@ export default function RegisterPage() {
         </div>
         
         <h2 className="text-center text-2xl font-bold text-slate-900 mb-2">Create an Account</h2>
-        <p className="text-center text-sm text-slate-500 mb-8">Join MediGo for a healthier tomorrow</p>
+        <p className="text-center text-sm text-slate-500 mb-6">Join MediGo for a healthier tomorrow</p>
         
+        <div className="mb-6">
+          <GoogleSignInButton
+            text="Sign up with Google"
+            redirectTo="/profile"
+            mode="register"
+            className="w-full"
+          />
+
+          <div className="relative mt-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-slate-200"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-3 bg-white text-slate-500">Or sign up with email</span>
+            </div>
+          </div>
+        </div>
+
         <form className="space-y-4" onSubmit={handleRegister}>
           <div>
             <label htmlFor="register-name" className="block text-sm font-medium text-slate-700 mb-1">Full Name</label>

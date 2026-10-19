@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { useState, useEffect, Suspense } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 
 /** Map Supabase error codes/messages to user-friendly messages without leaking internals */
 function getUserFriendlyError(error: { message: string; status?: number }): string {
@@ -135,10 +136,12 @@ function LoginForm() {
           </div>
 
           <div className="mt-6 grid grid-cols-2 gap-3">
-            <button className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-slate-300 rounded-xl shadow-sm bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
-              Google
-            </button>
-            <button className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-slate-300 rounded-xl shadow-sm bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+            <GoogleSignInButton redirectTo={redirectTo} text="Google" />
+            <button
+              type="button"
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border border-slate-300 rounded-xl shadow-sm bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-400 active:scale-[0.98] transition-all"
+              onClick={() => toast.info("Phone OTP sign-in will be available soon.")}
+            >
               OTP
             </button>
           </div>
