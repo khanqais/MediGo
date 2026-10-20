@@ -10,19 +10,49 @@ import {
   Leaf, 
   ArrowRight 
 } from "lucide-react";
+import { createClient } from "@/lib/supabase/server";
 
 const categories = [
-  { id: "1", name: "Fever and pain", icon: Flame, slug: "fever-pain", count: "14 items" },
-  { id: "2", name: "Diabetes maintenance", icon: Activity, slug: "diabetes", count: "8 items" },
-  { id: "3", name: "Cardiac care", icon: Heart, slug: "heart", count: "9 items" },
-  { id: "4", name: "Vitamins and immunity", icon: Sparkles, slug: "vitamins", count: "12 items" },
-  { id: "5", name: "Dermatology", icon: Smile, slug: "skin-care", count: "11 items" },
-  { id: "6", name: "Ophthalmic care", icon: Eye, slug: "eye-care", count: "6 items" },
-  { id: "7", name: "Pediatric care", icon: Baby, slug: "baby-care", count: "5 items" },
-  { id: "8", name: "Ayurvedic formulations", icon: Leaf, slug: "ayurveda", count: "10 items" },
+  { id: "1", name: "Fever and pain", icon: Flame, slug: "fever-pain" },
+  { id: "2", name: "Diabetes maintenance", icon: Activity, slug: "diabetes" },
+  { id: "3", name: "Cardiac care", icon: Heart, slug: "heart" },
+  { id: "4", name: "Vitamins and immunity", icon: Sparkles, slug: "vitamins" },
+  { id: "5", name: "Dermatology", icon: Smile, slug: "skin-care" },
+  { id: "6", name: "Ophthalmic care", icon: Eye, slug: "eye-care" },
+  { id: "7", name: "Pediatric care", icon: Baby, slug: "baby-care" },
+  { id: "8", name: "Ayurvedic formulations", icon: Leaf, slug: "ayurveda" },
 ];
 
-export default function CategoryGrid() {
+/**
+ * Counts reflect only medicines an admin has published, so the grid never
+ * advertises stock that is not in the database.
+ */
+async function getCategoryCounts(): Promise<Record<string, number>> {
+  try {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("medicines")
+      .select("id, categories(slug)")
+      .eq("is_active", true);
+
+    const counts: Record<string, number> = {};
+
+    (data ?? []).forEach((row: any) => {
+      const slug = row.categories?.slug;
+      if (typeof slug === "string" && slug.length > 0) {
+        counts[slug] = (counts[slug] ?? 0) + 1;
+      }
+    });
+
+    return counts;
+  } catch {
+    return {};
+  }
+}
+
+export default async function CategoryGrid() {
+  const counts = await getCategoryCounts();
+
   return (
     <section className="py-12 bg-card border-b border-border">
       <div className="container mx-auto px-4 max-w-6xl">
@@ -47,6 +77,8 @@ export default function CategoryGrid() {
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
           {categories.map((cat) => {
             const Icon = cat.icon;
+            const count = counts[cat.slug] ?? 0;
+
             return (
               <Link
                 key={cat.id}
@@ -60,7 +92,7 @@ export default function CategoryGrid() {
                   {cat.name}
                 </h3>
                 <span className="text-[11px] font-mono text-muted-foreground">
-                  {cat.count}
+                  {count === 0 ? "No items yet" : `${count} item${count === 1 ? "" : "s"}`}
                 </span>
               </Link>
             );

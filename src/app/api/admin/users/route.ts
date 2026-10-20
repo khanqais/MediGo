@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyRole } from "@/lib/auth/roles";
-import { createAdminClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: Request) {
   const { auth, errorResponse } = await verifyRole(["admin"]);
@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     const limit = Math.max(1, Math.min(100, parseInt(searchParams.get("limit") || "20")));
     const offset = (page - 1) * limit;
 
-    const adminClient = createAdminClient();
+    const adminClient = createClient();
 
     // 1. Fetch profiles with range and exact count
     const { data: profiles, count, error: profilesError } = await adminClient

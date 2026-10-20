@@ -48,6 +48,30 @@ export default async function FeaturedMedicines() {
 
   const totalCount = count || bestSellers.length;
 
+  if (bestSellers.length === 0) {
+    return (
+      <section className="py-12 bg-card border-b border-border">
+        <div className="container mx-auto px-4 max-w-6xl">
+          <div className="pharmacy-label bg-card border border-border rounded-md p-6 sm:p-8 text-center">
+            <h2 className="text-xl sm:text-2xl font-heading font-extrabold text-foreground">
+              The catalogue is being stocked
+            </h2>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-2 max-w-md mx-auto leading-relaxed">
+              No medicines have been published yet. Once the pharmacy team adds
+              stock in the admin portal, those exact medicines appear here.
+            </p>
+            <Link
+              href="/prescriptions"
+              className="inline-flex items-center justify-center gap-2 h-11 px-6 mt-5 bg-accent hover:bg-accent-hover text-accent-foreground font-heading font-bold text-sm rounded-sm border border-foreground/30 min-h-[44px]"
+            >
+              Upload a prescription instead
+            </Link>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="py-12 bg-card border-b border-border">
       <div className="container mx-auto px-4 max-w-6xl">

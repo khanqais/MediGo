@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyRole } from "@/lib/auth/roles";
-import { createAdminClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: Request) {
   const { auth, errorResponse } = await verifyRole(["admin", "pharmacist"]);
@@ -11,7 +11,7 @@ export async function GET(request: Request) {
     const status = searchParams.get("status");
     const search = searchParams.get("search")?.trim().toLowerCase();
 
-    const adminClient = createAdminClient();
+    const adminClient = createClient();
 
     const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
     const limit = Math.max(1, Math.min(100, parseInt(searchParams.get("limit") || "20")));

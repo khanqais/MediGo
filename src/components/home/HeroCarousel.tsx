@@ -17,58 +17,71 @@ import {
 import { motion, useReducedMotion } from "framer-motion";
 import { siteConfig } from "@/config/site";
 
-// Curated medicine database for interactive printed label chips
-const SAMPLE_MEDS: Record<string, { strengths: string[]; packSizes: string[]; salt: string }> = {
-  paracetamol: {
-    strengths: ["500 mg", "650 mg", "1000 mg"],
-    packSizes: ["10 Tablets", "15 Tablets", "Strip of 10", "60 ml Syrup"],
-    salt: "Paracetamol / Acetaminophen IP",
-  },
-  metformin: {
-    strengths: ["500 mg", "850 mg", "1000 mg SR"],
-    packSizes: ["10 Tablets", "15 Tablets", "20 Tablets"],
-    salt: "Metformin Hydrochloride IP",
-  },
-  amoxicillin: {
-    strengths: ["250 mg", "500 mg", "625 mg (CV)"],
-    packSizes: ["6 Tablets", "10 Capsules", "Strip of 6"],
-    salt: "Amoxicillin & Potassium Clavulanate IP",
-  },
-  telmisartan: {
-    strengths: ["20 mg", "40 mg", "80 mg"],
-    packSizes: ["10 Tablets", "15 Tablets", "30 Tablets"],
-    salt: "Telmisartan IP",
-  },
-  pantoprazole: {
-    strengths: ["40 mg", "40 mg + DSR"],
-    packSizes: ["10 Tablets", "15 Capsules"],
-    salt: "Pantoprazole Sodium Gastro-resistant",
-  },
-  atorvastatin: {
-    strengths: ["10 mg", "20 mg", "40 mg"],
-    packSizes: ["10 Tablets", "15 Tablets"],
-    salt: "Atorvastatin Calcium IP",
-  },
-};
+/** Minimal catalogue shape passed from the server (real DB rows only). */
+export interface HeroCatalogueItem {
+  name: string;
+  genericName: string;
+  composition: string;
+  packSize: string;
+}
 
-export default function HeroCarousel() {
+/** Pull distinct strengths (e.g. "500 mg", "10 ml") out of a composition string. */
+function extractStrengths(composition: string): string[] {
+  const matches = composition.match(/\d+(?:\.\d+)?\s*(?:mg|mcg|g|ml|%|iu)\b/gi) ?? [];
+  const unique = Array.from(new Set(matches.map((value) => value.replace(/\s+/g, " ").trim())));
+  return unique.slice(0, 4);
+}
+
+/** Split a pack size string (e.g. "1 strip of 10 tablets") into selectable chips. */
+function extractPackSizes(packSize: string): string[] {
+  const parts = packSize
+    .split(/[,/|]/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+  return (parts.length > 0 ? parts : packSize ? [packSize.trim()] : []).slice(0, 4);
+}
+
+export default function HeroCarousel({
+  catalogue = [],
+}: {
+  catalogue?: HeroCatalogueItem[];
+}) {
   const router = useRouter();
   const shouldReduceMotion = useReducedMotion();
   const [query, setQuery] = useState("");
   const [selectedStrength, setSelectedStrength] = useState<string | null>(null);
   const [selectedPackSize, setSelectedPackSize] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const licenseNo = siteConfig.compliance.drugLicenseNumber || "DL-MH-2024-89412";
 
-  // Determine matched medicine metadata if query contains known drug name
-  const matchedMedKey = useMemo(() => {
+  // Match the typed query against medicines that actually exist in the catalogue.
+  const activeMeta = useMemo(() => {
     const q = query.toLowerCase().trim();
-    if (!q) return "paracetamol"; // Default popular showcase
-    const found = Object.keys(SAMPLE_MEDS).find(k => q.includes(k) || k.includes(q));
-    return found || null;
-  }, [query]);
+    if (!q) return null;
 
-  const activeMeta = matchedMedKey ? SAMPLE_MEDS[matchedMedKey] : null;
+    const match = catalogue.find((item) => {
+      const name = item.name.toLowerCase();
+      const generic = item.genericName.toLowerCase();
+      const composition = item.composition.toLowerCase();
+      return name.includes(q) || generic.includes(q) || composition.includes(q) || q.includes(generic);
+    });
+
+    if (!match) return null;
+
+    return {
+      name: match.name,
+      salt: match.genericName || match.composition || match.name,
+      strengths: extractStrengths(match.composition),
+      packSizes: extractPackSizes(match.packSize),
+    };
+  }, [catalogue, query]);
+
+  const frequentItems = useMemo(() => catalogue.slice(0, 6), [catalogue]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,22 +100,25 @@ export default function HeroCarousel() {
     setSelectedPackSize(null);
   };
 
-  // Motion variants for orchestrated entrance
-  // Always start visible (opacity: 1) to avoid blank screen on SSR/hydration;
-  // only animate the vertical slide-in for a subtle entrance effect.
+  // `shouldReduceMotion` is null on the server, so we must not use it to set
+  // the initial `y` offset until after hydration. Before mount both server and
+  // client agree on y:0, preventing the "translateY(16px) vs none" warning.
+  const slideY = mounted && !shouldReduceMotion ? 16 : 0;
+  const staggerDelay = mounted && !shouldReduceMotion ? 0.08 : 0;
+
   const containerVariants = {
     hidden: { opacity: 1 },
     visible: {
       opacity: 1,
       transition: {
-        staggerChildren: shouldReduceMotion ? 0 : 0.08,
+        staggerChildren: staggerDelay,
         delayChildren: 0.05,
       },
     },
   };
 
   const itemVariants = {
-    hidden: { opacity: 1, y: shouldReduceMotion ? 0 : 16 },
+    hidden: { opacity: 1, y: slideY },
     visible: {
       opacity: 1,
       y: 0,
@@ -164,30 +180,45 @@ export default function HeroCarousel() {
             {/* Main Search Bar */}
             <form onSubmit={handleSearch} className="flex flex-col gap-4">
               <div className="relative">
-                <div className="flex items-center border-2 border-foreground rounded-sm bg-card overflow-hidden focus-within:ring-2 focus-within:ring-primary focus-within:border-primary transition-all">
-                  <div className="pl-3.5 pr-2 text-muted-foreground flex items-center justify-center">
-                    <Search size={20} className="stroke-[2.25] text-primary" />
+                <div className="flex flex-col sm:flex-row border-2 border-foreground rounded-sm bg-card overflow-hidden focus-within:ring-2 focus-within:ring-primary focus-within:border-primary transition-all">
+                  {/* Text Input Row */}
+                  <div className="flex items-center flex-1 min-w-0">
+                    <div className="pl-3.5 pr-2 text-muted-foreground flex items-center justify-center shrink-0">
+                      <Search size={20} className="stroke-[2.25] text-primary" />
+                    </div>
+                    <input
+                      type="text"
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      placeholder="Search medicine or active salt..."
+                      className="w-full flex-1 min-w-0 h-12 sm:h-14 px-2 text-base font-medium text-foreground placeholder:text-muted-foreground placeholder:truncate outline-none bg-transparent"
+                      aria-label="Search medicine name or active salt"
+                    />
+                    {query && (
+                      <button
+                        type="button"
+                        onClick={() => { setQuery(""); setSelectedStrength(null); setSelectedPackSize(null); }}
+                        className="h-12 sm:h-14 px-3 text-xs text-muted-foreground hover:text-foreground font-bold shrink-0 min-w-[44px] flex items-center justify-center transition-colors"
+                        aria-label="Clear search input"
+                      >
+                        Clear
+                      </button>
+                    )}
                   </div>
-                  <input
-                    type="text"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Type medicine name or active salt (e.g. Paracetamol, Metformin, Telmisartan)..."
-                    className="w-full h-12 sm:h-14 px-2 text-sm sm:text-base font-medium text-foreground placeholder:text-muted-foreground outline-none bg-transparent"
-                    aria-label="Search medicine name or active salt"
-                  />
-                  {query && (
-                    <button
-                      type="button"
-                      onClick={() => { setQuery(""); setSelectedStrength(null); setSelectedPackSize(null); }}
-                      className="px-3 text-xs text-muted-foreground hover:text-foreground font-bold"
-                    >
-                      Clear
-                    </button>
-                  )}
+
+                  {/* Mobile Stacked Submit Action */}
                   <button
                     type="submit"
-                    className="h-12 sm:h-14 px-5 sm:px-7 bg-primary text-primary-foreground hover:bg-primary-dark font-heading font-bold text-sm tracking-wide transition-colors flex items-center gap-2 shrink-0 border-l-2 border-foreground"
+                    className="sm:hidden w-full h-12 px-5 bg-primary text-primary-foreground hover:bg-primary-dark active:bg-primary-dark font-heading font-bold text-sm tracking-wide transition-colors flex items-center justify-center gap-2 shrink-0 border-t-2 border-foreground"
+                  >
+                    <span>Find medicine</span>
+                    <ArrowRight size={16} />
+                  </button>
+
+                  {/* Desktop Inline Submit Action */}
+                  <button
+                    type="submit"
+                    className="hidden sm:flex h-12 sm:h-14 px-5 sm:px-7 bg-primary text-primary-foreground hover:bg-primary-dark font-heading font-bold text-sm tracking-wide transition-colors items-center gap-2 shrink-0 border-l-2 border-foreground"
                   >
                     <span>Find medicine</span>
                     <ArrowRight size={16} />
@@ -196,7 +227,7 @@ export default function HeroCarousel() {
               </div>
 
               {/* Dynamic Strength and Pack Size Selectable Tags */}
-              {activeMeta && (
+              {activeMeta && (activeMeta.strengths.length > 0 || activeMeta.packSizes.length > 0) && (
                 <div className="bg-muted/50 border border-border rounded-sm p-3.5 flex flex-col gap-2.5">
                   <div className="flex flex-wrap items-center justify-between gap-1 text-xs">
                     <span className="font-heading font-bold text-foreground">
@@ -206,67 +237,73 @@ export default function HeroCarousel() {
                   </div>
 
                   {/* Strengths */}
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-bold text-muted-foreground w-16">Strength:</span>
-                    {activeMeta.strengths.map((str) => {
-                      const isSelected = selectedStrength === str;
-                      return (
-                        <button
-                          key={str}
-                          type="button"
-                          onClick={() => setSelectedStrength(isSelected ? null : str)}
-                          className={`text-xs font-mono font-bold px-2.5 py-1 rounded-sm border transition-all ${
-                            isSelected
-                              ? "bg-primary text-primary-foreground border-primary shadow-xs"
-                              : "bg-card text-foreground border-border hover:border-foreground/50 hover:bg-muted"
-                          }`}
-                        >
-                          {isSelected && <Check size={12} className="inline mr-1" />}
-                          {str}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  {activeMeta.strengths.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-bold text-muted-foreground w-16">Strength:</span>
+                      {activeMeta.strengths.map((str) => {
+                        const isSelected = selectedStrength === str;
+                        return (
+                          <button
+                            key={str}
+                            type="button"
+                            onClick={() => setSelectedStrength(isSelected ? null : str)}
+                            className={`text-xs font-mono font-bold px-2.5 py-1 rounded-sm border transition-all ${
+                              isSelected
+                                ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                                : "bg-card text-foreground border-border hover:border-foreground/50 hover:bg-muted"
+                            }`}
+                          >
+                            {isSelected && <Check size={12} className="inline mr-1" />}
+                            {str}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
 
                   {/* Pack Sizes */}
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-bold text-muted-foreground w-16">Pack size:</span>
-                    {activeMeta.packSizes.map((pack) => {
-                      const isSelected = selectedPackSize === pack;
-                      return (
-                        <button
-                          key={pack}
-                          type="button"
-                          onClick={() => setSelectedPackSize(isSelected ? null : pack)}
-                          className={`text-xs font-bold px-2.5 py-1 rounded-sm border transition-all ${
-                            isSelected
-                              ? "bg-primary text-primary-foreground border-primary shadow-xs"
-                              : "bg-card text-foreground border-border hover:border-foreground/50 hover:bg-muted"
-                          }`}
-                        >
-                          {isSelected && <Check size={12} className="inline mr-1" />}
-                          {pack}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  {activeMeta.packSizes.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-bold text-muted-foreground w-16">Pack size:</span>
+                      {activeMeta.packSizes.map((pack) => {
+                        const isSelected = selectedPackSize === pack;
+                        return (
+                          <button
+                            key={pack}
+                            type="button"
+                            onClick={() => setSelectedPackSize(isSelected ? null : pack)}
+                            className={`text-xs font-bold px-2.5 py-1 rounded-sm border transition-all ${
+                              isSelected
+                                ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                                : "bg-card text-foreground border-border hover:border-foreground/50 hover:bg-muted"
+                            }`}
+                          >
+                            {isSelected && <Check size={12} className="inline mr-1" />}
+                            {pack}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* Quick Popular Medicines Shortcut Bar */}
-              <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground pt-1">
-                <span className="font-semibold text-foreground mr-1">Frequent prescriptions:</span>
-                {Object.keys(SAMPLE_MEDS).map((medKey) => (
-                  <button
-                    key={medKey}
-                    type="button"
-                    onClick={() => handleSampleClick(medKey)}
-                    className="capitalize px-2 py-0.5 rounded-sm bg-muted hover:bg-border text-foreground text-xs font-medium border border-border"
-                  >
-                    {medKey}
-                  </button>
-                ))}
-              </div>
+              {/* Quick Popular Medicines Shortcut Bar (only real catalogue items) */}
+              {frequentItems.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground pt-1">
+                  <span className="font-semibold text-foreground mr-1">In stock now:</span>
+                  {frequentItems.map((med) => (
+                    <button
+                      key={med.name}
+                      type="button"
+                      onClick={() => handleSampleClick(med.name)}
+                      className="px-2 py-0.5 rounded-sm bg-muted hover:bg-border text-foreground text-xs font-medium border border-border"
+                    >
+                      {med.name}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {/* Label Bottom Action Strip */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-border">

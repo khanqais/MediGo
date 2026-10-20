@@ -25,7 +25,7 @@ export async function GET(
       .from("medicines")
       .select(`
         *,
-        categories!inner(slug, name),
+        categories(slug, name),
         inventory(stock_quantity)
       `)
       .eq("slug", slug)
@@ -77,7 +77,7 @@ export async function GET(
         .select(`
           id, name, brand, price, mrp, slug, image_url, composition, dosage, pack_size, manufacturer, discount_percentage, prescription_required, drug_schedule,
           inventory(stock_quantity),
-          categories!inner(slug)
+          categories(slug)
         `)
         .eq("composition", med.composition)
         .neq("id", med.id)

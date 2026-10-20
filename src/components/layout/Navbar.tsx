@@ -27,10 +27,39 @@ export default function Navbar() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
-  
+  const [serverStaffAccess, setServerStaffAccess] = useState(false);
+
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Resolve portal access server-side so ADMIN_EMAILS is honoured even when
+  // the database profile still says "customer".
+  useEffect(() => {
+    if (!mounted || !isAuthenticated) {
+      setServerStaffAccess(false);
+      return;
+    }
+
+    let active = true;
+    fetch("/api/auth/admin-access")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (active) setServerStaffAccess(Boolean(data?.allowed));
+      })
+      .catch(() => {
+        if (active) setServerStaffAccess(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [mounted, isAuthenticated]);
+
+  const canAccessPortal =
+    serverStaffAccess ||
+    profile?.role === "admin" ||
+    profile?.role === "pharmacist";
   
   useEffect(() => {
     setHighlightedIndex(-1);
@@ -265,13 +294,13 @@ export default function Navbar() {
           </Link>
 
           {/* Staff Portal Link if Admin or Pharmacist */}
-          {mounted && isAuthenticated && (profile?.role === "admin" || profile?.role === "pharmacist") && (
+          {mounted && isAuthenticated && canAccessPortal && (
             <Link
               href="/admin"
               className="hidden md:flex items-center gap-1.5 text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/30 px-3 py-2 rounded-md transition min-h-[44px]"
             >
               <ShieldCheck size={16} />
-              <span>{profile.role === "admin" ? "Admin portal" : "Pharmacist portal"}</span>
+              <span>Admin portal</span>
             </Link>
           )}
 
@@ -362,9 +391,9 @@ export default function Navbar() {
             <Link href="/orders" onClick={() => setMobileMenuOpen(false)} className="p-3 bg-muted/60 rounded-md hover:bg-muted min-h-[44px] flex items-center">
               Order history
             </Link>
-            {mounted && isAuthenticated && (profile?.role === "admin" || profile?.role === "pharmacist") && (
+            {mounted && isAuthenticated && canAccessPortal && (
               <Link href="/admin" onClick={() => setMobileMenuOpen(false)} className="p-3 bg-primary/10 text-primary font-bold rounded-md hover:bg-primary/20 col-span-2 min-h-[44px] flex items-center">
-                Staff portal ({profile.role === "admin" ? "Admin" : "Pharmacist"})
+                Admin portal
               </Link>
             )}
           </div>

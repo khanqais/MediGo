@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { isAdminEmail } from '@/lib/auth/admin-access'
 
 // Routes that require authentication
 const PROTECTED_ROUTES = ['/profile', '/addresses', '/orders', '/prescriptions']
@@ -74,8 +75,10 @@ export async function updateSession(request: NextRequest) {
       .single()
 
     const role = profile?.role
-    // Only admin and pharmacist roles can access the admin portal
-    if (role !== 'admin' && role !== 'pharmacist') {
+    // Environment allow-list (ADMIN_EMAILS) grants access, as do privileged roles.
+    const allowed = isAdminEmail(user.email) || role === 'admin' || role === 'pharmacist'
+
+    if (!allowed) {
       const homeUrl = request.nextUrl.clone()
       homeUrl.pathname = '/'
       const redirectResponse = NextResponse.redirect(homeUrl)

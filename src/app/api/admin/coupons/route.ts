@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { verifyRole } from "@/lib/auth/roles";
-import { createAdminClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 
 const couponSchema = z.object({
   code: z.string().min(3).regex(/^[A-Z0-9_-]+$/, "Uppercase letters, numbers, hyphens, and underscores only"),
@@ -21,7 +21,7 @@ export async function GET(request: Request) {
   if (errorResponse) return errorResponse;
 
   try {
-    const adminClient = createAdminClient();
+    const adminClient = createClient();
     const { data: coupons, error } = await adminClient
       .from("coupons")
       .select(`

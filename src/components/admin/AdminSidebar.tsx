@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuthStore } from "@/store/authStore";
+import type { UserRole } from "@/types/user";
 
 const NAV_ITEMS = [
   {
@@ -51,7 +52,7 @@ const NAV_ITEMS = [
   },
 ];
 
-export default function AdminSidebar() {
+export default function AdminSidebar({ effectiveRole }: { effectiveRole?: UserRole }) {
   const pathname = usePathname();
   const router = useRouter();
   const { profile, logout } = useAuthStore();
@@ -62,7 +63,10 @@ export default function AdminSidebar() {
     setMounted(true);
   }, []);
 
-  const currentRole = mounted && profile?.role ? profile.role : "pharmacist";
+  // The server layout resolves the effective role (including ADMIN_EMAILS),
+  // so trust it first and fall back to the client profile while it loads.
+  const currentRole: UserRole =
+    effectiveRole ?? (mounted && profile?.role ? profile.role : "pharmacist");
 
   const handleLogout = async () => {
     await logout();

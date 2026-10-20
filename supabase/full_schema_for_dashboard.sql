@@ -2682,3 +2682,65 @@ GRANT ALL ON TABLE public.email_events TO service_role;
 GRANT ALL ON TABLE public.email_events TO postgres;
 
 
+-- Migration: 00000000000026_clear_demo_catalogue.sql
+-- ---------------------------------------------------------------------------
+-- Clear the demo medicine catalogue.
+--
+-- The storefront now shows ONLY medicines an admin publishes through
+-- /admin/medicines. This migration removes the sample rows that previously
+-- shipped with the repository.
+--
+-- Safety: if any order history references the existing medicines we deactivate
+-- them instead of deleting, so invoices and order items stay intact. Public
+-- storefront queries filter on `is_active = true`, so either branch leaves the
+-- shop visibly empty until real stock is added.
+-- ---------------------------------------------------------------------------
+
+DO $$
+DECLARE
+    v_order_item_count bigint;
+BEGIN
+    SELECT count(*) INTO v_order_item_count FROM public.order_items;
+
+    IF v_order_item_count = 0 THEN
+        -- inventory and inventory_batches cascade from medicines.
+        DELETE FROM public.medicines;
+        RAISE NOTICE 'Cleared demo medicine catalogue (% rows removed).', v_order_item_count;
+    ELSE
+        UPDATE public.medicines SET is_active = false;
+        RAISE NOTICE 'Order history found: demo medicines deactivated instead of deleted.';
+    END IF;
+END
+$$;
+
+
+-- Migration: 00000000000027_admin_self_promote.sql
+-- ---------------------------------------------------------------------------
+-- Allow admin-portal users to promote their own profile role to 'admin'.
+--
+-- The /api/auth/promote-admin endpoint calls this RPC after verifying the
+-- caller's email is in the ADMIN_EMAILS environment variable (server-side).
+--
+-- Using SECURITY DEFINER means the function runs as the DB owner and can
+-- update the profiles table regardless of RLS.  The GRANT ensures any
+-- authenticated Supabase user can invoke it (the server validates permissions
+-- before calling).
+-- ---------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION public.promote_self_to_admin(target_user_id UUID)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  UPDATE public.profiles
+  SET    role = 'admin', updated_at = now()
+  WHERE  id = target_user_id
+    AND  role NOT IN ('admin', 'pharmacist');
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.promote_self_to_admin(UUID) TO authenticated;
+
+

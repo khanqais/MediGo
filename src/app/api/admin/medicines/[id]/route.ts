@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { verifyRole } from "@/lib/auth/roles";
 import { createAdminClient } from "@/lib/supabase/server";
+import { isInvalidServiceKeyError, serviceKeyErrorBody } from "@/lib/supabase/errors";
 
 const medicineUpdateSchema = z
   .object({
@@ -96,11 +97,25 @@ export async function PUT(
     const adminClient = createAdminClient();
 
     // Check slug uniqueness against other medicines
-    const { data: existingMed } = await adminClient
+    let { data: existingMed, error: existingError } = await adminClient
       .from("medicines")
       .select("id, slug, mrp, price, drug_schedule, prescription_required, is_active, composition, manufacturer")
       .eq("id", medicineId)
       .single();
+
+    if (existingError && (existingError.code === "42703" || String(existingError.message).includes("drug_schedule"))) {
+      const fallback = await adminClient
+        .from("medicines")
+        .select("id, slug, mrp, price, prescription_required, is_active, composition, manufacturer")
+        .eq("id", medicineId)
+        .single();
+      existingMed = fallback.data as any;
+      existingError = fallback.error;
+    }
+
+    if (isInvalidServiceKeyError(existingError)) {
+      return NextResponse.json(serviceKeyErrorBody(), { status: 503 });
+    }
 
     if (!existingMed) {
       return NextResponse.json({ error: "Medicine not found" }, { status: 404 });
@@ -162,34 +177,48 @@ export async function PUT(
     const discountPercentage = mrp > 0 ? Math.round(((mrp - price) / mrp) * 100) : 0;
 
     // 1. Update medicine record
-    const { data: updatedMed, error: updateError } = await adminClient
+    const updatePayload: any = {
+      name: d.name,
+      slug: d.slug,
+      brand: d.brand,
+      generic_name: d.genericName || null,
+      composition,
+      category_id: d.categoryId || null,
+      mrp,
+      price,
+      discount_percentage: discountPercentage,
+      drug_schedule: drugSchedule,
+      prescription_required: prescriptionRequired,
+      manufacturer,
+      pack_size: d.packSize || null,
+      dosage: d.dosage || null,
+      description: d.description || null,
+      directions: d.directions || null,
+      warnings: d.warnings || null,
+      image_url: d.imageUrl || null,
+      images: d.images.length > 0 ? d.images : d.imageUrl ? [d.imageUrl] : [],
+      is_active: isActive,
+      updated_at: new Date().toISOString(),
+    };
+
+    let { data: updatedMed, error: updateError } = await adminClient
       .from("medicines")
-      .update({
-        name: d.name,
-        slug: d.slug,
-        brand: d.brand,
-        generic_name: d.genericName || null,
-        composition,
-        category_id: d.categoryId || null,
-        mrp,
-        price,
-        discount_percentage: discountPercentage,
-        drug_schedule: drugSchedule,
-        prescription_required: prescriptionRequired,
-        manufacturer,
-        pack_size: d.packSize || null,
-        dosage: d.dosage || null,
-        description: d.description || null,
-        directions: d.directions || null,
-        warnings: d.warnings || null,
-        image_url: d.imageUrl || null,
-        images: d.images.length > 0 ? d.images : d.imageUrl ? [d.imageUrl] : [],
-        is_active: isActive,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updatePayload)
       .eq("id", medicineId)
       .select()
       .single();
+
+    if (updateError && (updateError.code === "PGRST204" || updateError.code === "42703" || String(updateError.message).includes("drug_schedule"))) {
+      delete updatePayload.drug_schedule;
+      const retry = await adminClient
+        .from("medicines")
+        .update(updatePayload)
+        .eq("id", medicineId)
+        .select()
+        .single();
+      updatedMed = retry.data;
+      updateError = retry.error;
+    }
 
     if (updateError || !updatedMed) {
       console.error("Error updating medicine:", updateError);
@@ -212,13 +241,17 @@ export async function PUT(
       console.error("Error updating inventory:", invError);
     }
 
-    await adminClient.from("admin_audit_log").insert({
-      admin_id: auth!.id,
-      action: "UPDATE_MEDICINE",
-      entity_type: "medicines",
-      entity_id: medicineId,
-      details: { name: d.name, old_price: existingMed.price, new_price: d.price },
-    });
+    try {
+      await adminClient.from("admin_audit_log").insert({
+        admin_id: auth!.id,
+        action: "UPDATE_MEDICINE",
+        entity_type: "medicines",
+        entity_id: medicineId,
+        details: { name: d.name, old_price: existingMed.price, new_price: d.price },
+      });
+    } catch {
+      // non-blocking
+    }
 
     return NextResponse.json({
       success: true,
@@ -247,6 +280,14 @@ export async function DELETE(
       .from("order_items")
       .select("*", { count: "exact", head: true })
       .eq("medicine_id", medicineId);
+
+    if (countError) {
+      if (isInvalidServiceKeyError(countError)) {
+        return NextResponse.json(serviceKeyErrorBody(), { status: 503 });
+      }
+      console.error("Error checking order history:", countError);
+      return NextResponse.json({ error: "Failed to verify medicine usage" }, { status: 500 });
+    }
 
     if (count && count > 0) {
       // Soft deactivate instead of hard delete to preserve historical order records

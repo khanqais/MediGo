@@ -142,7 +142,8 @@ export default function MedicinesPage() {
             All Medicines & Healthcare
           </h1>
           <p className="text-slate-500 text-sm mt-1">
-            Browse 49 lab-tested certified generic pharmaceuticals & wellness formulations
+            Every medicine below is published by the pharmacy team and available
+            for verified home delivery.
           </p>
         </div>
 

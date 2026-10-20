@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { verifyRole } from "@/lib/auth/roles";
-import { createAdminClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 
 export async function GET(request: Request) {
   const { auth, errorResponse } = await verifyRole(["admin", "pharmacist"]);
@@ -15,7 +15,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "medicine_id is required" }, { status: 400 });
     }
 
-    const adminClient = createAdminClient();
+    const adminClient = createClient();
     const { data: batches, error } = await adminClient
       .from("inventory_batches")
       .select("*")

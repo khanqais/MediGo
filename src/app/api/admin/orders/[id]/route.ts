@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyRole } from "@/lib/auth/roles";
-import { createAdminClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 
 export async function GET(
   request: Request,
@@ -11,7 +11,7 @@ export async function GET(
 
   try {
     const orderId = params.id;
-    const adminClient = createAdminClient();
+    const adminClient = createClient();
 
     // 1. Fetch order
     const { data: order, error: orderError } = await adminClient

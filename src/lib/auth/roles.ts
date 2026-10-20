@@ -1,6 +1,7 @@
 import * as React from "react";
 import { NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { isAdminEmail } from "@/lib/auth/admin-access";
 import { UserRole } from "@/types/user";
 
 export interface AuthenticatedUser {
@@ -31,6 +32,10 @@ const getProfile = requestCache(async (userId: string) => {
  *
  * If the user is unauthenticated or does not possess one of the allowed roles,
  * throws an error.
+ *
+ * Users whose email appears in `ADMIN_EMAILS` are always treated as `admin`,
+ * regardless of the role stored on their profile. This lets a single Gmail
+ * address in the environment file own the portal without manual DB edits.
  */
 export async function requireRole(allowedRoles: UserRole[]): Promise<AuthenticatedUser> {
   const supabase = createClient();
@@ -40,6 +45,24 @@ export async function requireRole(allowedRoles: UserRole[]): Promise<Authenticat
     const error = new Error("UNAUTHORIZED");
     (error as any).status = 401;
     throw error;
+  }
+
+  // Environment allow-list takes precedence over the stored profile role.
+  if (isAdminEmail(user.email)) {
+    if (!allowedRoles.includes("admin")) {
+      const error = new Error("FORBIDDEN");
+      (error as any).status = 403;
+      throw error;
+    }
+
+    const { data: profile, error: profileError } = await getProfile(user.id);
+
+    return {
+      id: user.id,
+      email: user.email || profile?.email || "",
+      role: "admin",
+      fullName: profileError ? null : profile?.full_name,
+    };
   }
 
   // Fetch the role from profiles using adminClient to ensure trusted server check (cached per request)

@@ -40,6 +40,12 @@ interface MedicineItem {
   description?: string | null;
   image_url?: string | null;
   is_active: boolean;
+  category_id?: string | null;
+  categories?: {
+    id: string;
+    name: string;
+    slug: string;
+  } | null;
   inventory?: {
     stock_quantity: number;
     reorder_level: number;
@@ -55,6 +61,7 @@ interface RowError {
 export default function AdminMedicinesPage() {
   const [medicines, setMedicines] = useState<MedicineItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [categories, setCategories] = useState<{ id: string; name: string; slug: string }[]>([]);
   const [search, setSearch] = useState("");
   const [scheduleFilter, setScheduleFilter] = useState("ALL");
   const [activeFilter, setActiveFilter] = useState("ALL");
@@ -74,6 +81,7 @@ export default function AdminMedicinesPage() {
     brand: "",
     genericName: "",
     composition: "",
+    categoryId: "",
     mrp: "",
     price: "",
     batchQuantity: "50",
@@ -102,6 +110,48 @@ export default function AdminMedicinesPage() {
   } | null>(null);
   const [parsedRows, setParsedRows] = useState<any[]>([]);
   const [csvImporting, setCsvImporting] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload an image file (PNG, JPG, WebP)");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image file size must be less than 5MB");
+      return;
+    }
+
+    const uploadData = new FormData();
+    uploadData.append("file", file);
+
+    setUploadingImage(true);
+    const toastId = toast.loading("Uploading image to Cloudinary...");
+    try {
+      const res = await fetch("/api/admin/upload", {
+        method: "POST",
+        body: uploadData,
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to upload image");
+      }
+
+      setFormData((prev) => ({ ...prev, imageUrl: data.url }));
+      toast.success("Image uploaded to Cloudinary successfully", { id: toastId });
+    } catch (err: any) {
+      console.error("Cloudinary upload error:", err);
+      toast.error(err.message || "Failed to upload image", { id: toastId });
+    } finally {
+      setUploadingImage(false);
+      e.target.value = "";
+    }
+  };
 
   const fetchMedicines = useCallback(async () => {
     try {
@@ -135,6 +185,24 @@ export default function AdminMedicinesPage() {
     fetchMedicines();
   }, [fetchMedicines]);
 
+  // Store categories power the "where this appears" selector.
+  useEffect(() => {
+    let active = true;
+
+    fetch("/api/categories")
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => {
+        if (active && Array.isArray(data)) setCategories(data);
+      })
+      .catch(() => {
+        /* Category list is optional; medicines can still be saved without one. */
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const openAddModal = () => {
     setEditingMed(null);
     setFormErrors({});
@@ -144,6 +212,7 @@ export default function AdminMedicinesPage() {
       brand: "",
       genericName: "",
       composition: "",
+      categoryId: "",
       mrp: "",
       price: "",
       batchQuantity: "50",
@@ -170,6 +239,7 @@ export default function AdminMedicinesPage() {
       brand: med.brand,
       genericName: med.generic_name || "",
       composition: med.composition,
+      categoryId: med.category_id || "",
       mrp: String(med.mrp),
       price: String(med.price),
       batchQuantity: "0", // Editing existing medicine requires separate batch adjustment
@@ -226,6 +296,16 @@ export default function AdminMedicinesPage() {
     if (isNaN(batchQuantity) || batchQuantity < 0) errors.batchQuantity = "Quantity must be 0 or more";
       if (batchQuantity > 0 && !batchNumber) errors.batchNumber = "Batch Number is required";
       if (batchQuantity > 0 && !expiryDate) errors.expiryDate = "Expiry Date is required";
+      if (batchQuantity > 0 && expiryDate) {
+        const expiry = new Date(expiryDate);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (Number.isNaN(expiry.getTime())) {
+          errors.expiryDate = "Enter a valid expiry date";
+        } else if (expiry <= today) {
+          errors.expiryDate = "Expiry must be after today, otherwise the batch cannot be sold";
+        }
+      }
     if (isNaN(reorderLevel) || reorderLevel < 0) errors.reorderLevel = "Reorder level must be 0 or more";
 
     if (Object.keys(errors).length > 0) {
@@ -250,6 +330,7 @@ export default function AdminMedicinesPage() {
           brand: formData.brand.trim(),
           genericName: formData.genericName.trim(),
           composition: formData.composition.trim(),
+          categoryId: formData.categoryId || null,
           mrp,
           price,
           batchQuantity,
@@ -534,6 +615,9 @@ export default function AdminMedicinesPage() {
                         {med.pack_size && (
                           <div className="text-[11px] text-slate-400">{med.pack_size}</div>
                         )}
+                        <div className="text-[11px] text-emerald-700 font-semibold">
+                          {med.categories?.name ? `Listed in ${med.categories.name}` : "Not listed in a category"}
+                        </div>
                       </td>
                       <td className="py-3.5 px-4">
                         <span
@@ -713,6 +797,29 @@ export default function AdminMedicinesPage() {
                 </div>
               </div>
 
+              {/* Storefront category: controls which category page lists this medicine */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Store category
+                </label>
+                <select
+                  value={formData.categoryId}
+                  onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
+                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:outline-emerald-500 bg-slate-50 focus:bg-white"
+                >
+                  <option value="">Uncategorised (visible in all medicines only)</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Pick a category so this medicine also appears on the matching
+                  storefront category page.
+                </p>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -757,6 +864,9 @@ export default function AdminMedicinesPage() {
                     placeholder="50"
                     className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:outline-emerald-500 bg-slate-50 focus:bg-white"
                   />
+                  {formErrors.batchQuantity && (
+                    <p className="text-[11px] text-rose-600 mt-1">{formErrors.batchQuantity}</p>
+                  )}
                 </div>
 
                 <div>
@@ -772,6 +882,42 @@ export default function AdminMedicinesPage() {
                   />
                 </div>
               </div>
+
+              {/* Batch details are required whenever initial stock is added */}
+              {Number(formData.batchQuantity) > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Batch Number *
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.batchNumber}
+                      onChange={(e) => setFormData({ ...formData, batchNumber: e.target.value })}
+                      placeholder="e.g. B-2026-001"
+                      className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:outline-emerald-500 bg-slate-50 focus:bg-white font-mono"
+                    />
+                    {formErrors.batchNumber && (
+                      <p className="text-[11px] text-rose-600 mt-1">{formErrors.batchNumber}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Expiry Date *
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.expiryDate}
+                      onChange={(e) => setFormData({ ...formData, expiryDate: e.target.value })}
+                      className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:outline-emerald-500 bg-slate-50 focus:bg-white"
+                    />
+                    {formErrors.expiryDate && (
+                      <p className="text-[11px] text-rose-600 mt-1">{formErrors.expiryDate}</p>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Drug Schedule Select */}
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
@@ -853,15 +999,67 @@ export default function AdminMedicinesPage() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Product Image URL
+                  Product Image
                 </label>
-                <input
-                  type="text"
-                  value={formData.imageUrl}
-                  onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-                  placeholder="https://..."
-                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:outline-emerald-500 bg-slate-50 focus:bg-white"
-                />
+                <div className="space-y-2">
+                  <div className="flex items-center gap-3">
+                    <label className={`inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-xl border border-emerald-500/40 bg-emerald-50 text-emerald-700 hover:bg-emerald-100/70 cursor-pointer transition ${uploadingImage ? "opacity-50 pointer-events-none" : ""}`}>
+                      {uploadingImage ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+                          <span>Uploading to Cloudinary...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Upload Image (Cloudinary)</span>
+                        </>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="hidden"
+                        disabled={uploadingImage}
+                      />
+                    </label>
+                    <span className="text-[11px] text-slate-400">or enter image URL directly:</span>
+                  </div>
+
+                  <input
+                    type="text"
+                    value={formData.imageUrl}
+                    onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
+                    placeholder="https://res.cloudinary.com/... or https://..."
+                    className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:outline-emerald-500 bg-slate-50 focus:bg-white"
+                  />
+
+                  {formData.imageUrl && (
+                    <div className="flex items-center gap-3 p-2 bg-slate-50 rounded-xl border border-slate-200">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={formData.imageUrl}
+                        alt="Medicine preview"
+                        className="w-12 h-12 object-contain rounded-lg border border-slate-200 bg-white p-1"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = "none";
+                        }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] font-semibold text-slate-800 truncate">{formData.imageUrl}</p>
+                        <p className="text-[10px] text-emerald-600 font-medium">Image attached</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, imageUrl: "" })}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                        title="Remove image"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div>

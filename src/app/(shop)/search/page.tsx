@@ -44,13 +44,12 @@ function SearchContent() {
   ];
 
   const popularSearches = [
-    "Azithromycin",
-    "Paracetamol",
-    "Levofloxacin",
-    "Metformin",
-    "Vitamin D3",
-    "Pantoprazole",
-    "Cough Syrup"
+    "Antibiotics",
+    "Fever and pain",
+    "Diabetes",
+    "Vitamins",
+    "Heart care",
+    "Skin care",
   ];
 
   useEffect(() => {

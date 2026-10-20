@@ -50,7 +50,7 @@ export async function GET(request: Request) {
       .from("medicines")
       .select(`
         *,
-        categories!inner(slug, name),
+        categories(slug, name),
         inventory(stock_quantity)
       `, { count: "exact" })
       .eq("is_active", true);

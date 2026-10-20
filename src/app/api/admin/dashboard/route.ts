@@ -1,28 +1,49 @@
 import { NextResponse } from "next/server";
 import { verifyRole } from "@/lib/auth/roles";
-import { createAdminClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: Request) {
   const { auth, errorResponse } = await verifyRole(["admin", "pharmacist"]);
   if (errorResponse) return errorResponse;
 
   try {
-    const adminClient = createAdminClient();
+    const adminClient = createClient();
 
     // Calculate start of today (UTC)
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
     const todayIso = today.toISOString();
 
+    let allInventoryData: any[] = [];
+    try {
+      const { data: invData, error: invErr } = await adminClient
+        .from("inventory")
+        .select(`id, stock_quantity, reorder_level, medicines:medicine_id (id, name, brand, slug, drug_schedule, composition, price)`);
+
+      if (invErr) {
+        if (invErr.code === "42703" || String(invErr.message).includes("drug_schedule")) {
+          // Fallback query if drug_schedule column is not yet present
+          const { data: fallbackData } = await adminClient
+            .from("inventory")
+            .select(`id, stock_quantity, reorder_level, medicines:medicine_id (id, name, brand, slug, composition, price)`);
+          allInventoryData = fallbackData || [];
+        } else {
+          console.error("Error fetching inventory:", invErr);
+        }
+      } else {
+        allInventoryData = invData || [];
+      }
+    } catch (e) {
+      console.error("Inventory query exception:", e);
+    }
+
     const [
       { data: todayOrders, error: todayOrdersError },
       { count: pendingRxCount, error: rxError },
-      { data: allInventory, error: invError },
       { data: recentOrders, error: recentOrdersError },
     ] = await Promise.all([
       adminClient.from("orders").select("id, total_amount, status, payment_status, payment_method").gte("created_at", todayIso),
       adminClient.from("prescriptions").select("*", { count: "exact", head: true }).eq("status", "PENDING"),
-      adminClient.from("inventory").select(`id, stock_quantity, reorder_level, medicines:medicine_id (id, name, brand, slug, drug_schedule, composition, price)`),
       adminClient.from("orders").select(`id, total_amount, status, payment_status, payment_method, created_at, profiles:user_id (id, full_name, email, phone)`).order("created_at", { ascending: false }).limit(10)
     ]);
 
@@ -44,11 +65,7 @@ export async function GET(request: Request) {
       console.error("Error counting pending prescriptions:", rxError);
     }
 
-    if (invError) {
-      console.error("Error fetching inventory:", invError);
-    }
-
-    const lowStockItems = (allInventory || [])
+    const lowStockItems = (allInventoryData || [])
       .filter((item: any) => item.stock_quantity <= item.reorder_level)
       .map((item: any) => ({
         id: item.id,
@@ -56,7 +73,7 @@ export async function GET(request: Request) {
         name: item.medicines?.name,
         brand: item.medicines?.brand,
         slug: item.medicines?.slug,
-        schedule: item.medicines?.drug_schedule,
+        schedule: item.medicines?.drug_schedule || "OTC",
         composition: item.medicines?.composition,
         stockQuantity: item.stock_quantity,
         reorderLevel: item.reorder_level,
