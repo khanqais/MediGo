@@ -3,6 +3,7 @@
 # dependencies
 .opencode
 /node_modules
+scripts
 /.pnp
 .pnp.*
 .yarn/*
