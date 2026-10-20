@@ -593,6 +593,70 @@ GRANT EXECUTE ON FUNCTION public.promote_self_to_admin(UUID) TO authenticated;
 
 
 -- -----------------------------------------------------------------------------
+-- 12b. Rate Limiting (rate_limits table + check_rate_limit RPC)
+-- -----------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS public.rate_limits (
+    key text PRIMARY KEY,
+    tokens integer NOT NULL,
+    last_refilled timestamp with time zone NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.rate_limits DISABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION public.check_rate_limit(p_key text, p_limit integer, p_window_ms integer)
+RETURNS json AS $$
+DECLARE
+    v_tokens integer;
+    v_last_refilled timestamp with time zone;
+    v_now timestamp with time zone := now();
+    v_reset_time timestamp with time zone;
+    v_allowed boolean;
+BEGIN
+    SELECT rate_limits.tokens, rate_limits.last_refilled 
+    INTO v_tokens, v_last_refilled 
+    FROM public.rate_limits WHERE key = p_key FOR UPDATE;
+
+    IF v_tokens IS NULL THEN
+        INSERT INTO public.rate_limits (key, tokens, last_refilled)
+        VALUES (p_key, p_limit - 1, v_now);
+        v_tokens := p_limit - 1;
+        v_last_refilled := v_now;
+        v_allowed := true;
+    ELSE
+        IF v_now >= v_last_refilled + (p_window_ms || ' milliseconds')::interval THEN
+            v_tokens := p_limit - 1;
+            v_last_refilled := v_now;
+            v_allowed := true;
+        ELSIF v_tokens > 0 THEN
+            v_tokens := v_tokens - 1;
+            v_allowed := true;
+        ELSE
+            v_allowed := false;
+        END IF;
+        
+        UPDATE public.rate_limits 
+        SET tokens = v_tokens, last_refilled = v_last_refilled
+        WHERE key = p_key;
+    END IF;
+
+    v_reset_time := v_last_refilled + (p_window_ms || ' milliseconds')::interval;
+    
+    RETURN json_build_object(
+        'allowed', v_allowed,
+        'remaining', v_tokens,
+        'reset_time', v_reset_time
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+REVOKE EXECUTE ON FUNCTION public.check_rate_limit(text, integer, integer) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.check_rate_limit(text, integer, integer) FROM authenticated;
+REVOKE EXECUTE ON FUNCTION public.check_rate_limit(text, integer, integer) FROM anon;
+GRANT EXECUTE ON FUNCTION public.check_rate_limit(text, integer, integer) TO service_role;
+
+
+-- -----------------------------------------------------------------------------
 -- 13. Clear the demo medicine catalogue
 --     (already empty on most installs; harmless if it is)
 -- -----------------------------------------------------------------------------

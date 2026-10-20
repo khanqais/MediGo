@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 const querySchema = z.object({
   q: z.string().min(1).max(100),
-  limit: z.coerce.number().min(1).max(50).default(20),
+  limit: z.coerce.number().min(1).max(100).default(20),
 });
 
 import { rateLimit, getClientIp } from "@/lib/rate-limit";

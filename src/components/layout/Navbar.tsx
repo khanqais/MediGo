@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { 
+import {
   Search, MapPin, User, ShoppingBag, Pill, Heart, ChevronDown, Menu, X, ShieldCheck
 } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
@@ -60,16 +60,16 @@ export default function Navbar() {
     serverStaffAccess ||
     profile?.role === "admin" ||
     profile?.role === "pharmacist";
-  
+
   useEffect(() => {
     setHighlightedIndex(-1);
     if (!searchQuery.trim()) {
       setSuggestions([]);
       return;
     }
-    
+
     const abortController = new AbortController();
-    
+
     const delayDebounceFn = setTimeout(async () => {
       setIsSearching(true);
       try {
@@ -102,7 +102,7 @@ export default function Navbar() {
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!showSuggestions || suggestions.length === 0) return;
-    
+
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       setHighlightedIndex(prev => (prev < suggestions.length - 1 ? prev + 1 : prev));
@@ -136,7 +136,7 @@ export default function Navbar() {
       <div className="container mx-auto px-4 h-16 sm:h-20 flex items-center justify-between gap-3 md:gap-6">
         {/* Left: Mobile Hamburger & Logo */}
         <div className="flex items-center gap-2">
-          <button 
+          <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="md:hidden p-2 text-foreground hover:bg-muted rounded-md transition min-h-[44px] min-w-[44px] flex items-center justify-center"
             aria-label="Toggle navigation menu"
@@ -211,7 +211,7 @@ export default function Navbar() {
                 <option value="Syrups">Syrups</option>
                 <option value="Skin">Dermatology</option>
               </select>
-              
+
               <input
                 type="text"
                 value={searchQuery}
@@ -244,11 +244,11 @@ export default function Navbar() {
               ) : suggestions.length > 0 ? (
                 <ul className="max-h-80 overflow-y-auto divide-y divide-border">
                   {suggestions.map((med, index) => (
-                    <li 
-                      key={med.id} 
+                    <li
+                      key={med.id}
                       className={`${index === highlightedIndex ? 'bg-muted' : 'hover:bg-muted/50'}`}
                     >
-                      <Link 
+                      <Link
                         href={`/medicines/${med.slug}`}
                         className="block p-3"
                         onClick={() => setShowSuggestions(false)}
@@ -294,15 +294,6 @@ export default function Navbar() {
           </Link>
 
           {/* Staff Portal Link if Admin or Pharmacist */}
-          {mounted && isAuthenticated && canAccessPortal && (
-            <Link
-              href="/admin"
-              className="hidden md:flex items-center gap-1.5 text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/30 px-3 py-2 rounded-md transition min-h-[44px]"
-            >
-              <ShieldCheck size={16} />
-              <span>Admin portal</span>
-            </Link>
-          )}
 
           {/* User Account / Sign In */}
           {mounted && isAuthenticated ? (
@@ -350,8 +341,8 @@ export default function Navbar() {
             placeholder="Search medicine name, salt, strength..."
             className="w-full h-11 pl-4 pr-11 text-sm rounded-md border-2 border-foreground/70 focus:outline-none focus:border-primary bg-card text-foreground placeholder:text-muted-foreground shadow-xs"
           />
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             className="absolute right-0 h-full px-3 text-muted-foreground hover:text-primary min-w-[44px] flex items-center justify-center"
             aria-label="Search medicines"
           >
