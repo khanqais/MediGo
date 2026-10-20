@@ -1,8 +1,7 @@
 "use client";
 
 import { useCartStore } from "@/store/cartStore";
-import { X, Minus, Plus, Trash2, ArrowRight, Truck, ShoppingBag } from "lucide-react";
-import Link from "next/link";
+import { X, Minus, Plus, Trash2, ArrowRight, Truck, ShoppingBag, FileText } from "lucide-react";
 import Image from "next/image";
 import { useEffect } from "react";
 import { isOtcMedicine, isOtcOnlyMode, OTC_ONLY_STOREFRONT_LABEL } from "@/lib/sales-mode";
@@ -13,15 +12,12 @@ export default function CartDrawer() {
   const { 
     isDrawerOpen, 
     closeDrawer, 
-    items,
-    removeNonOtcItems, 
+    items, 
     updateQuantity, 
     removeItem, 
     subtotal, 
-    totalSavings,
-    deliveryFee, 
-    total,
-    appliedCoupon 
+    totalSavings, 
+    total 
   } = useCartStore();
 
   useEffect(() => {
@@ -37,11 +33,10 @@ export default function CartDrawer() {
 
   const cartSubtotal = subtotal();
   const cartSavings = totalSavings();
-  const currentDeliveryFee = deliveryFee();
   const cartTotalAmount = total();
   const freeDeliveryThreshold = 499;
-  const progressPercent = Math.min(100, Math.round((cartSubtotal / freeDeliveryThreshold) * 100));
   const remainingForFreeDelivery = Math.max(0, freeDeliveryThreshold - cartSubtotal);
+  const hasPrescriptionItems = items.some(i => i.medicine.prescriptionRequired);
 
   const handleProceedToCheckout = () => {
     closeDrawer();
@@ -53,210 +48,201 @@ export default function CartDrawer() {
       {/* Backdrop */}
       <div
         onClick={closeDrawer}
-        className={`fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 transition-opacity duration-300 ${
+        className={`fixed inset-0 bg-foreground/60 backdrop-blur-xs z-50 transition-opacity duration-250 ${
           isDrawerOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
         }`}
       />
       {/* Drawer panel */}
       <div
-        className={`fixed right-0 top-0 bottom-0 w-full sm:w-[440px] bg-white z-50 flex flex-col shadow-2xl transition-transform duration-300 ease-in-out ${
+        className={`fixed right-0 top-0 bottom-0 w-full sm:w-[440px] bg-card z-50 flex flex-col shadow-drawer border-l border-border transition-transform duration-250 ease-in-out ${
           isDrawerOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
-            {/* Drawer Header */}
-            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <ShoppingBag size={20} className="text-primary" />
-                <h2 className="text-lg sm:text-xl font-black text-slate-800">Your Cart</h2>
-                <span className="text-xs font-bold text-white bg-accent px-2 py-0.5 rounded-full">
-                  {items.reduce((acc, i) => acc + i.quantity, 0)} items
-                </span>
+        {/* Drawer Header */}
+        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-border bg-muted/40">
+          <div className="flex items-center gap-2.5">
+            <ShoppingBag size={20} className="text-primary" />
+            <h2 className="font-heading font-bold text-lg text-foreground">Shopping cart</h2>
+            <span className="text-xs font-bold text-accent-foreground bg-accent border border-foreground/20 px-2 py-0.5 rounded-sm">
+              {items.reduce((acc, i) => acc + i.quantity, 0)} items
+            </span>
+          </div>
+          <button 
+            onClick={closeDrawer}
+            className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
+            aria-label="Close cart"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Free Delivery Goal Bar */}
+        {items.length > 0 && (
+          <div className="p-3.5 bg-muted/50 border-b border-border">
+            <div className="flex items-center justify-between text-xs font-medium text-foreground mb-1.5">
+              <span className="flex items-center gap-1.5">
+                <Truck size={15} className="text-primary shrink-0" />
+                {remainingForFreeDelivery === 0 ? (
+                  <span className="text-primary font-bold">You unlocked free express delivery!</span>
+                ) : (
+                  <span>
+                    Add <strong className="text-primary font-bold font-mono">₹{remainingForFreeDelivery}</strong> more for free delivery
+                  </span>
+                )}
+              </span>
+            </div>
+            <div className="w-full bg-border h-1.5 rounded-full overflow-hidden">
+              <div 
+                className="bg-primary h-full transition-all duration-300"
+                style={{ width: `${Math.min(100, Math.round((cartSubtotal / freeDeliveryThreshold) * 100))}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Prescription notice in cart */}
+        {hasPrescriptionItems && (
+          <div className="p-3 bg-destructive/10 border-b border-destructive/20 flex items-center gap-2 text-xs font-medium text-destructive">
+            <FileText size={16} className="shrink-0" />
+            <span>Prescription required for items in your cart. You can attach it at checkout.</span>
+          </div>
+        )}
+
+        {/* Cart Items List */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {items.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-center py-12 px-4">
+              <div className="w-16 h-16 bg-muted rounded-md flex items-center justify-center mb-4 text-2xl">
+                <ShoppingBag size={28} className="text-muted-foreground" />
               </div>
+              <h3 className="font-heading font-bold text-foreground text-lg mb-1">Your cart is empty</h3>
+              <p className="text-muted-foreground text-xs sm:text-sm max-w-xs mb-6">
+                Explore our pharmacy catalogue and save up to 80% on verified generic medicines.
+              </p>
               <button 
-                onClick={closeDrawer}
-                className="p-2 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-full transition-colors"
-                aria-label="Close cart"
+                onClick={closeDrawer} 
+                className="px-6 py-2.5 bg-primary text-primary-foreground rounded-md text-xs sm:text-sm font-bold hover:bg-primary-dark transition shadow-xs min-h-[44px]"
               >
-                <X size={20} />
+                Browse medicines
               </button>
             </div>
-
-            {/* Free Delivery Goal Bar */}
-            {items.length > 0 && (
-              <div className="p-3.5 bg-green-50/80 border-b border-green-100">
-                <div className="flex items-center justify-between text-xs font-semibold text-slate-700 mb-1.5">
-                  <span className="flex items-center gap-1.5">
-                    <Truck size={15} className="text-primary" />
-                    {remainingForFreeDelivery === 0 ? (
-                      <span className="text-green-700 font-bold">You unlocked FREE Express Delivery!</span>
-                    ) : (
-                      <span>
-                        Add <strong className="text-primary">₹{remainingForFreeDelivery}</strong> more for <strong>FREE Delivery</strong>
-                      </span>
-                    )}
-                  </span>
-                  <span className="font-bold text-primary">{progressPercent}%</span>
+          ) : (
+            items.map((item) => (
+              <div 
+                key={item.medicine.id} 
+                className="flex gap-3 p-3 bg-card border border-border rounded-md shadow-blister"
+              >
+                <div className="relative w-16 h-16 bg-muted/40 border border-border rounded-sm shrink-0 overflow-hidden flex items-center justify-center p-1">
+                  {item.medicine.imageUrl ? (
+                    <Image 
+                      src={item.medicine.imageUrl} 
+                      alt={item.medicine.name} 
+                      fill 
+                      sizes="64px" 
+                      className="object-contain" 
+                      unoptimized={item.medicine.imageUrl.startsWith("http")} 
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-muted rounded flex items-center justify-center text-[10px] text-muted-foreground">
+                      Rx
+                    </div>
+                  )}
                 </div>
-                <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
-                  <div 
-                    className="bg-primary h-full transition-all duration-300 rounded-full"
-                    style={{ width: `${progressPercent}%` }}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Cart Items List */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3.5 hide-scrollbar">
-              {items.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-center py-12 px-4">
-                  <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-4 text-3xl">
-                    🛒
-                  </div>
-                  <h3 className="font-bold text-slate-800 text-lg mb-1">Your cart is empty</h3>
-                  <p className="text-slate-500 text-xs sm:text-sm max-w-xs mb-6">
-                    Browse our generic pharmacy catalogue and save up to 80% on genuine medicines.
-                  </p>
-                  <button 
-                    onClick={closeDrawer} 
-                    className="px-6 py-2.5 bg-primary text-white rounded-xl text-xs sm:text-sm font-bold hover:bg-primary-dark transition shadow-sm"
-                  >
-                    Start Shopping
-                  </button>
-                </div>
-              ) : (
-                items.map((item) => (
-                  <div 
-                    key={item.medicine.id} 
-                    className="flex gap-3.5 p-3.5 bg-white border border-slate-200 rounded-2xl shadow-2xs hover:border-slate-300 transition"
-                  >
-                    <div className="relative w-16 h-16 bg-slate-50 border border-slate-100 rounded-xl shrink-0 overflow-hidden flex items-center justify-center p-1">
-                      {item.medicine.imageUrl ? (
-                        <Image 
-                          src={item.medicine.imageUrl} 
-                          alt={item.medicine.name} 
-                          fill 
-                          sizes="64px" 
-                          className="object-contain" 
-                          unoptimized={item.medicine.imageUrl.startsWith("http")} 
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-slate-100 rounded flex items-center justify-center text-[10px] text-slate-400">
-                          Med
-                        </div>
+                
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-start gap-2">
+                    <div>
+                      <h4 className="font-heading font-bold text-foreground text-xs sm:text-sm line-clamp-1">
+                        {item.medicine.name}
+                      </h4>
+                      <p className="text-[11px] text-muted-foreground truncate">{item.medicine.composition}</p>
+                      {item.medicine.prescriptionRequired && (
+                        <span className="text-[10px] font-bold text-destructive inline-block mt-0.5">
+                          Prescription required
+                        </span>
+                      )}
+                      {isOtcOnlyMode() && !isOtcMedicine(item.medicine) && (
+                        <p className="text-[10px] font-semibold text-amber-700 mt-0.5">
+                          {OTC_ONLY_STOREFRONT_LABEL}
+                        </p>
                       )}
                     </div>
-                    
-                    <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-start gap-2">
-                        <div>
-                          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block truncate">
-                            {item.medicine.brand}
-                          </span>
-                          <h4 className="font-bold text-slate-900 text-xs sm:text-sm line-clamp-1">
-                            {item.medicine.name}
-                          </h4>
-                          {isOtcOnlyMode() && !isOtcMedicine(item.medicine) && (
-                            <p className="text-[10px] font-semibold text-amber-700 mt-0.5">
-                              {OTC_ONLY_STOREFRONT_LABEL}
-                            </p>
-                          )}
-                        </div>
-                        <button 
-                          onClick={() => removeItem(item.medicine.id)}
-                          className="text-slate-400 hover:text-red-500 transition-colors p-1 shrink-0"
-                          aria-label={`Remove ${item.medicine.name}`}
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
+                    <button 
+                      onClick={() => removeItem(item.medicine.id)}
+                      className="text-muted-foreground hover:text-destructive transition-colors p-1.5 shrink-0"
+                      aria-label={`Remove ${item.medicine.name}`}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
 
-                      <div className="flex justify-between items-center mt-2.5">
-                        <div className="flex items-baseline gap-1.5">
-                          <span className="font-black text-slate-900 text-sm">₹{item.medicine.price * item.quantity}</span>
-                          {item.medicine.mrp > item.medicine.price && (
-                            <span className="text-[10px] text-slate-400 line-through">
-                              ₹{item.medicine.mrp * item.quantity}
-                            </span>
-                          )}
-                        </div>
+                  <div className="flex justify-between items-center mt-2">
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="font-heading font-bold text-foreground text-sm font-mono">₹{item.medicine.price * item.quantity}</span>
+                      {item.medicine.mrp > item.medicine.price && (
+                        <span className="text-[10px] text-muted-foreground line-through font-mono">
+                          ₹{item.medicine.mrp * item.quantity}
+                        </span>
+                      )}
+                    </div>
 
-                        {/* Stepper */}
-                        <div className="flex items-center border border-slate-200 rounded-lg bg-slate-50 h-7">
-                          <button 
-                            onClick={() => updateQuantity(item.medicine.id, Math.max(1, item.quantity - 1))}
-                            className="px-2 h-full text-slate-500 hover:text-primary transition-colors"
-                            aria-label="Decrease quantity"
-                          >
-                            <Minus size={12} />
-                          </button>
-                          <span className="text-xs font-bold w-5 text-center text-slate-900">{item.quantity}</span>
-                          <button 
-                            onClick={() => updateQuantity(item.medicine.id, item.quantity + 1)}
-                            className="px-2 h-full text-slate-500 hover:text-primary transition-colors"
-                            aria-label="Increase quantity"
-                          >
-                            <Plus size={12} />
-                          </button>
-                        </div>
-                      </div>
+                    {/* Stepper with accessible touch targets */}
+                    <div className="flex items-center border border-border rounded-sm bg-muted/40 h-8">
+                      <button 
+                        onClick={() => updateQuantity(item.medicine.id, Math.max(1, item.quantity - 1))}
+                        className="w-8 h-full flex items-center justify-center text-foreground hover:bg-muted transition-colors"
+                        aria-label="Decrease quantity"
+                      >
+                        <Minus size={13} />
+                      </button>
+                      <span className="text-xs font-bold w-6 text-center text-foreground font-mono">{item.quantity}</span>
+                      <button 
+                        onClick={() => updateQuantity(item.medicine.id, item.quantity + 1)}
+                        className="w-8 h-full flex items-center justify-center text-foreground hover:bg-muted transition-colors"
+                        aria-label="Increase quantity"
+                      >
+                        <Plus size={13} />
+                      </button>
                     </div>
                   </div>
-                ))
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Drawer Footer Actions */}
+        {items.length > 0 && (
+          <div className="p-4 sm:p-5 border-t border-border bg-muted/30 space-y-3">
+            <div className="space-y-1 text-xs">
+              <div className="flex justify-between text-muted-foreground font-medium">
+                <span>Subtotal</span>
+                <span className="font-bold text-foreground font-mono text-sm">₹{cartSubtotal}</span>
+              </div>
+              {cartSavings > 0 && (
+                <div className="flex justify-between text-primary font-semibold">
+                  <span>Savings vs brand MRP</span>
+                  <span className="font-mono">-₹{cartSavings}</span>
+                </div>
               )}
             </div>
 
-            {/* Drawer Footer Actions */}
-            {items.length > 0 && (
-              <div className="p-4 sm:p-5 border-t border-slate-100 bg-slate-50 space-y-3">
-                <div className="space-y-1 text-xs">
-                  <div className="flex justify-between text-slate-500 font-medium">
-                    <span>Subtotal</span>
-                    <span className="font-bold text-slate-900 text-sm">₹{cartSubtotal}</span>
-                  </div>
-                  {cartSavings > 0 && (
-                    <div className="flex justify-between text-green-600 font-semibold">
-                      <span>You saved</span>
-                      <span>-₹{cartSavings}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between text-slate-500">
-                    <span>Delivery</span>
-                    <span className="font-semibold text-slate-900">
-                      {currentDeliveryFee === 0 ? <span className="text-green-600 font-bold">FREE</span> : `₹${currentDeliveryFee}`}
-                    </span>
-                  </div>
-                  {appliedCoupon && appliedCoupon.discount > 0 && (
-                    <div className="flex justify-between text-green-600 font-semibold">
-                      <span>Coupon ({appliedCoupon.code})</span>
-                      <span>-₹{appliedCoupon.discount}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between text-slate-900 font-bold pt-1 border-t border-slate-200">
-                    <span>Total</span>
-                    <span className="text-sm font-black text-slate-900">₹{cartTotalAmount}</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  <Link 
-                    href="/cart"
-                    onClick={closeDrawer}
-                    className="flex items-center justify-center py-3 bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 rounded-xl font-bold text-xs sm:text-sm transition-colors shadow-2xs"
-                  >
-                    View Cart
-                  </Link>
-
-                  <button 
-                    onClick={handleProceedToCheckout}
-                    className="flex items-center justify-center gap-1.5 py-3 bg-primary text-white rounded-xl font-bold text-xs sm:text-sm hover:bg-primary-dark transition-colors shadow-md active:scale-95"
-                  >
-                    Checkout <ArrowRight size={15} />
-                  </button>
-                </div>
+            <div className="pt-2 border-t border-border flex justify-between items-baseline">
+              <div>
+                <span className="text-xs text-muted-foreground block">Estimated total</span>
+                <span className="font-heading font-extrabold text-xl text-foreground font-mono">₹{cartTotalAmount}</span>
               </div>
-            )}
+              <button
+                onClick={handleProceedToCheckout}
+                className="h-12 px-6 bg-accent hover:bg-accent-hover text-accent-foreground font-heading font-bold rounded-md shadow-xs border border-foreground/20 flex items-center gap-2 text-sm transition-all active:scale-[0.98]"
+              >
+                <span>Proceed to checkout</span>
+                <ArrowRight size={16} />
+              </button>
+            </div>
           </div>
+        )}
+      </div>
     </>
   );
 }

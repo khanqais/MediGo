@@ -1,14 +1,14 @@
-import { Star, CheckCircle, Quote } from "lucide-react";
+import { Star, ShieldCheck, Quote } from "lucide-react";
 
 const reviews = [
   {
     id: 1,
-    name: "Dr. Rajesh Sharma",
+    name: "Dr. Anand Kulkarni",
     city: "Mumbai, Maharashtra",
-    initials: "RS",
+    initials: "AK",
     rating: 5,
-    quote: "As a practicing physician, I was initially sceptical about generic delivery platforms. MediQuick's medicines from ZenKins have the exact same bioequivalence and chemical efficacy as branded equivalents. My family saved over ₹4,500 last month alone.",
-    badge: "Verified Buyer & Doctor",
+    quote: "As a physician, I inspect active chemical salts carefully. MediGo dispenses authentic WHO-GMP certified generic formulations with identical bio-equivalence to top commercial brands at a fraction of the cost.",
+    badge: "Verified physician & patient",
   },
   {
     id: 2,
@@ -16,8 +16,8 @@ const reviews = [
     city: "Bengaluru, Karnataka",
     initials: "PV",
     rating: 5,
-    quote: "My mother requires chronic medications for hypertension and diabetes every single month. Earlier our pharmacy bill was ₹3,800. With MediQuick generics, it dropped to just ₹820 with free express delivery. Incredible service!",
-    badge: "Verified Buyer",
+    quote: "My elderly mother requires chronic maintenance medicines for hypertension and diabetes each month. Our monthly pharmacy bill dropped from ₹3,800 to ₹840 with free express delivery. The dosages are clearly printed on each pack.",
+    badge: "Verified monthly buyer",
   },
   {
     id: 3,
@@ -25,55 +25,58 @@ const reviews = [
     city: "Kolkata, West Bengal",
     initials: "AS",
     rating: 5,
-    quote: "Prescription verification was done in under 5 minutes. The packaging is premium alu-alu and blister packs with full batch numbers and expiry. Delivery arrived in 90 minutes right to my flat.",
-    badge: "Verified Buyer",
+    quote: "Prescription verification was completed within 10 minutes by a registered pharmacist. The packaging arrived in insulated tamper-evident packaging with clear batch numbers and expiry dates.",
+    badge: "Verified buyer",
   },
 ];
 
 export default function Testimonials() {
   return (
-    <section className="py-14 bg-slate-50">
-      <div className="container mx-auto px-4">
-        <div className="text-center max-w-2xl mx-auto mb-12">
-          <span className="text-xs font-bold uppercase tracking-wider text-primary">REAL REVIEWS</span>
-          <h2 className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">What Our Patients Say</h2>
-          <p className="text-sm text-slate-500 mt-2">Over 2,00,000+ happy customers trust MediQuick for their monthly prescription needs</p>
+    <section className="py-14 bg-background border-b border-border">
+      <div className="container mx-auto px-4 max-w-6xl">
+        <div className="mb-10 max-w-xl">
+          <h2 className="text-2xl sm:text-3xl font-heading font-extrabold text-foreground">
+            Verified patient feedback
+          </h2>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+            Genuine experiences from patients and families managing daily prescriptions across India
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {reviews.map((rev) => (
             <div
               key={rev.id}
-              className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-xs hover:shadow-lg transition-all duration-300 flex flex-col justify-between relative group"
+              className="blister-card rounded-md p-5 sm:p-6 border border-border bg-card flex flex-col justify-between"
             >
-              <Quote className="absolute top-6 right-6 text-slate-100 group-hover:text-green-50 transition-colors w-12 h-12 pointer-events-none" />
-
               <div>
-                {/* Rating Stars */}
-                <div className="flex items-center gap-1 mb-4 text-amber-400">
-                  {[...Array(rev.rating)].map((_, i) => (
-                    <Star key={i} size={16} className="fill-current" />
-                  ))}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-1 text-accent">
+                    {[...Array(rev.rating)].map((_, i) => (
+                      <Star key={i} size={15} className="fill-current text-foreground" />
+                    ))}
+                  </div>
+                  <span className="text-[10px] font-bold text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-sm">
+                    {rev.badge}
+                  </span>
                 </div>
 
-                {/* Quote */}
-                <p className="text-slate-700 text-sm leading-relaxed mb-6 italic relative z-10">
+                <p className="text-foreground text-xs sm:text-sm leading-relaxed mb-6">
                   &ldquo;{rev.quote}&rdquo;
                 </p>
               </div>
 
-              {/* Author */}
-              <div className="flex items-center gap-3 pt-4 border-t border-slate-100">
-                <div className="w-11 h-11 rounded-full bg-primary/10 text-primary font-black text-sm flex items-center justify-center border border-primary/20 shrink-0">
+              <div className="flex items-center gap-3 pt-4 border-t border-border">
+                <div className="w-9 h-9 rounded-sm bg-muted text-foreground font-heading font-bold text-xs flex items-center justify-center border border-border shrink-0">
                   {rev.initials}
                 </div>
                 <div>
-                  <h4 className="font-bold text-sm text-slate-900 leading-tight">{rev.name}</h4>
-                  <p className="text-xs text-slate-400">{rev.city}</p>
-                  <div className="flex items-center gap-1 text-[11px] font-bold text-green-700 mt-0.5">
-                    <CheckCircle size={12} />
-                    <span>{rev.badge}</span>
-                  </div>
+                  <h3 className="font-heading font-bold text-xs sm:text-sm text-foreground">
+                    {rev.name}
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground">
+                    {rev.city}
+                  </p>
                 </div>
               </div>
             </div>

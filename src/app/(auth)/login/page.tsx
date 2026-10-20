@@ -77,26 +77,21 @@ function LoginForm() {
   return (
     <div className="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-slate-50">
       <div className="max-w-md w-full bg-white p-8 rounded-3xl shadow-lg border border-slate-100">
-        <div className="flex justify-center mb-8">
-          <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center">
-            <Pill className="w-8 h-8 text-primary" />
-          </div>
-        </div>
-        
+
         <h2 className="text-center text-2xl font-bold text-slate-900 mb-2">Welcome Back</h2>
         <p className="text-center text-sm text-slate-500 mb-8">Sign in to your MediGo account to continue</p>
-        
+
         <form className="space-y-6" onSubmit={handleLogin}>
           <div>
             <label htmlFor="login-email" className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
-            <input 
+            <input
               id="login-email"
-              type="email" 
+              type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="appearance-none relative block w-full px-4 py-3 border border-slate-300 placeholder-slate-400 text-slate-900 bg-white rounded-xl focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm transition-colors" 
-              placeholder="you@example.com" 
+              className="appearance-none relative block w-full px-4 py-3 border border-slate-300 placeholder-slate-400 text-slate-900 bg-white rounded-xl focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm transition-colors"
+              placeholder="you@example.com"
             />
           </div>
           <div>
@@ -104,20 +99,20 @@ function LoginForm() {
               <label htmlFor="login-password" className="block text-sm font-medium text-slate-700">Password</label>
               <Link href="/forgot-password" className="text-sm text-primary hover:underline font-medium">Forgot password?</Link>
             </div>
-            <input 
+            <input
               id="login-password"
-              type="password" 
+              type="password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="appearance-none relative block w-full px-4 py-3 border border-slate-300 placeholder-slate-400 text-slate-900 bg-white rounded-xl focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm transition-colors" 
-              placeholder="••••••••" 
+              className="appearance-none relative block w-full px-4 py-3 border border-slate-300 placeholder-slate-400 text-slate-900 bg-white rounded-xl focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm transition-colors"
+              placeholder="••••••••"
             />
           </div>
-          
-          <button 
+
+          <button
             id="login-submit-btn"
-            type="submit" 
+            type="submit"
             disabled={isSubmitting}
             className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-bold rounded-xl text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors shadow-md active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
           >

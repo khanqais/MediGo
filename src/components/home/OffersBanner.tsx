@@ -1,108 +1,104 @@
 import Link from "next/link";
-import { ArrowRight, Sparkles, Percent, Heart, ShieldPlus } from "lucide-react";
+import { ArrowRight, Tag, Percent, Sparkles, ShieldCheck } from "lucide-react";
 
 const offers = [
   {
     id: 1,
-    gradient: "from-emerald-700 via-green-600 to-teal-700",
-    eyebrow: "MEGA GENERIC FEST",
-    headline: "Up to 80% Off on Generics",
+    code: "FIRST20",
+    headline: "Flat 20% off on your first order",
     subtext: "Replace expensive branded medicines with identical certified generic salts.",
-    cta: "Shop Generics",
+    cta: "Shop generic medicines",
     href: "/medicines?filter=generics",
-    icon: Percent,
+    badge: "New patient discount",
   },
   {
     id: 2,
-    gradient: "from-amber-600 via-orange-500 to-red-500",
-    eyebrow: "SPECIAL HEALTH WEEK",
-    headline: "Diabetes Wellness Week",
-    subtext: "Save extra 25% on glucometers, strips, and maintenance medications.",
-    cta: "Explore Deals",
+    code: "DIABETES25",
+    headline: "Extra 25% off chronic maintenance care",
+    subtext: "Save on monthly blood sugar monitoring strips, metformin, and daily supplements.",
+    cta: "Explore diabetes medicines",
     href: "/medicines?category=diabetes",
-    icon: Sparkles,
+    badge: "Monthly refill saving",
   },
   {
     id: 3,
-    gradient: "from-blue-700 via-indigo-600 to-cyan-700",
-    eyebrow: "WELCOME REWARD",
-    headline: "Flat ₹150 Off First Order",
-    subtext: "Use coupon FIRST150 at checkout on any order above ₹599.",
-    cta: "Claim Discount",
+    code: "FREEDEL",
+    headline: "Free express cold-chain delivery",
+    subtext: "Complimentary doorstep courier dispatch on any order valued at ₹299 or above.",
+    cta: "View offers page",
     href: "/offers",
-    icon: ShieldPlus,
+    badge: "Express shipping",
   },
   {
     id: 4,
-    gradient: "from-purple-800 via-purple-600 to-pink-600",
-    eyebrow: "CARDIAC CARE",
-    headline: "Heart Medicine Savings",
-    subtext: "High-grade cardiovascular therapies and supplements with doorstep delivery.",
-    cta: "View Medicines",
+    code: "CARDIAC30",
+    headline: "Cardiovascular therapies at direct cost",
+    subtext: "Laboratory tested anti-hypertensives and statins sourced directly from WHO-GMP labs.",
+    cta: "Browse cardiac care",
     href: "/medicines?category=heart",
-    icon: Heart,
+    badge: "Clinical wellness",
   },
 ];
 
 export default function OffersBanner() {
   return (
-    <section className="py-12 bg-slate-50">
-      <div className="container mx-auto px-4">
+    <section className="py-12 bg-background border-b border-border">
+      <div className="container mx-auto px-4 max-w-6xl">
         <div className="flex items-end justify-between mb-8">
           <div>
-            <span className="text-xs font-bold uppercase tracking-wider text-accent">PROMOTIONS</span>
-            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">Deals & Offers</h2>
+            <h2 className="text-2xl sm:text-3xl font-heading font-extrabold text-foreground">
+              Verified coupon savings
+            </h2>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+              Apply tested promotional codes at checkout for additional savings
+            </p>
           </div>
           <Link
             href="/offers"
-            className="text-xs sm:text-sm font-bold text-primary hover:text-primary-dark inline-flex items-center gap-1 group"
+            className="text-xs sm:text-sm font-heading font-bold text-primary hover:underline inline-flex items-center gap-1.5 min-h-[44px]"
           >
-            All Offers <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+            <span>All offers</span>
+            <ArrowRight size={15} />
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {offers.map((offer) => {
-            const Icon = offer.icon;
-            return (
-              <div
-                key={offer.id}
-                className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${offer.gradient} text-white p-6 sm:p-8 shadow-sm hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 group flex flex-col justify-between`}
-              >
-                {/* Subtle decorative background circle */}
-                <div className="absolute -right-8 -bottom-8 w-40 h-40 bg-white/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-500 pointer-events-none" />
-                
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-[11px] font-black tracking-wider uppercase">
-                      {offer.eyebrow}
-                    </span>
-                    <div className="w-9 h-9 rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center">
-                      <Icon size={18} className="text-white" />
-                    </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {offers.map((offer) => (
+            <div
+              key={offer.id}
+              className="pharmacy-label bg-card border-2 border-border rounded-md p-5 sm:p-6 flex flex-col justify-between"
+            >
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <span className="text-xs font-bold text-primary bg-primary/10 border border-primary/20 px-2.5 py-0.5 rounded-sm">
+                    {offer.badge}
+                  </span>
+                  <div className="flex items-center gap-1.5 bg-muted px-2.5 py-1 rounded-sm border border-border">
+                    <Tag size={13} className="text-muted-foreground" />
+                    <span className="font-mono font-bold text-xs text-foreground tracking-wider">{offer.code}</span>
                   </div>
-
-                  <h3 className="text-xl sm:text-2xl font-black leading-tight mb-2">
-                    {offer.headline}
-                  </h3>
-
-                  <p className="text-sm text-white/90 leading-relaxed mb-6 max-w-md">
-                    {offer.subtext}
-                  </p>
                 </div>
 
-                <div>
-                  <Link
-                    href={offer.href}
-                    className="inline-flex items-center gap-2 bg-white text-slate-900 hover:bg-slate-100 font-bold px-5 py-2.5 rounded-full text-xs sm:text-sm shadow-md transition group-hover:gap-3"
-                  >
-                    <span>{offer.cta}</span>
-                    <ArrowRight size={15} className="text-primary" />
-                  </Link>
-                </div>
+                <h3 className="font-heading font-bold text-lg text-foreground mb-1.5 leading-snug">
+                  {offer.headline}
+                </h3>
+                <p className="text-xs text-muted-foreground leading-relaxed mb-4">
+                  {offer.subtext}
+                </p>
               </div>
-            );
-          })}
+
+              <div className="pt-3 border-t border-border flex items-center justify-between">
+                <span className="text-[11px] text-muted-foreground">Applies at checkout</span>
+                <Link
+                  href={offer.href}
+                  className="inline-flex items-center gap-1.5 text-xs font-heading font-bold text-primary hover:underline min-h-[44px]"
+                >
+                  <span>{offer.cta}</span>
+                  <ArrowRight size={14} />
+                </Link>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </section>

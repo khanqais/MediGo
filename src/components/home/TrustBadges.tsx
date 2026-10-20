@@ -1,48 +1,48 @@
-import { ShieldCheck, Truck, PiggyBank, CheckCircle } from "lucide-react";
+import { ShieldCheck, Truck, PiggyBank, Award } from "lucide-react";
 
 const trustItems = [
   {
-    icon: CheckCircle,
-    title: "WHO-GMP Certified",
-    subtitle: "Lab verified quality & active salts",
-  },
-  {
-    icon: Truck,
-    title: "Pan-India Delivery",
-    subtitle: "Free express delivery above ₹499",
-  },
-  {
-    icon: PiggyBank,
-    title: "Up to 80% Savings",
-    subtitle: "Affordable authentic generic pricing",
+    icon: Award,
+    title: "WHO-GMP certified",
+    subtitle: "Lab verified active salts and chemical purity",
   },
   {
     icon: ShieldCheck,
-    title: "100% Genuine",
-    subtitle: "Directly sourced from licensed pharma",
+    title: "100% authentic generics",
+    subtitle: "Sourced directly from licensed Indian manufacturers",
+  },
+  {
+    icon: PiggyBank,
+    title: "Up to 80% lower cost",
+    subtitle: "Exact therapeutic bio-equivalence at fair prices",
+  },
+  {
+    icon: Truck,
+    title: "Express cold-chain dispatch",
+    subtitle: "Sealed packaging with temperature controls",
   },
 ];
 
 export default function TrustBadges() {
   return (
-    <section className="bg-primary-dark text-white py-5 shadow-sm border-b border-green-800">
-      <div className="container mx-auto px-4">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+    <section className="bg-muted/40 border-b border-border py-6">
+      <div className="container mx-auto px-4 max-w-6xl">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {trustItems.map((item, index) => {
             const Icon = item.icon;
             return (
               <div
                 key={index}
-                className="flex items-center gap-3 p-2 sm:p-3 rounded-xl hover:bg-white/5 transition"
+                className="flex items-start gap-3 p-3 bg-card border border-border rounded-md shadow-blister"
               >
-                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center shrink-0 text-emerald-300">
-                  <Icon size={22} className="stroke-[2.25]" />
+                <div className="w-9 h-9 rounded-sm bg-primary/10 text-primary flex items-center justify-center shrink-0 border border-primary/20">
+                  <Icon size={18} className="stroke-[2.25]" />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-sm sm:text-base leading-tight text-white flex items-center gap-1.5">
+                  <h3 className="font-heading font-bold text-xs sm:text-sm text-foreground leading-snug">
                     {item.title}
                   </h3>
-                  <p className="text-xs text-green-100/80 leading-snug mt-0.5 hidden sm:block">
+                  <p className="text-[11px] text-muted-foreground leading-snug mt-0.5">
                     {item.subtitle}
                   </p>
                 </div>

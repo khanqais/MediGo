@@ -18,33 +18,33 @@ export default function MedicineCard({ medicine, priority = false }: { medicine:
     e.preventDefault();
     addItem(medicine);
     setIsAdded(true);
-    toast.success(`${medicine.name} added to cart!`);
+    toast.success(`${medicine.name} added to cart`);
     setTimeout(() => setIsAdded(false), 1800);
   };
 
+  const isRx = medicine.prescriptionRequired || medicine.drugSchedule === "H" || medicine.drugSchedule === "H1" || medicine.drugSchedule === "X";
+
   return (
-    <div className="group bg-white rounded-2xl border border-slate-200 hover:border-primary/50 shadow-xs hover:shadow-lg transition-all duration-300 overflow-hidden flex flex-col h-full relative">
-      {/* Top Badges */}
-      <div className="absolute top-2.5 left-2.5 right-2.5 z-10 flex items-center justify-between pointer-events-none">
+    <div className="blister-card rounded-md border border-border bg-card overflow-hidden flex flex-col h-full relative">
+      {/* Top Clinical Badge Row */}
+      <div className="p-3 pb-0 flex items-center justify-between gap-1.5 z-10">
         {medicine.drugSchedule === "X" ? (
-          <span className="inline-flex items-center gap-1 bg-red-600 text-white text-[10px] font-black uppercase px-2 py-0.5 rounded-full shadow-xs">
-            Schedule X
+          <span className="inline-flex items-center gap-1 bg-destructive text-destructive-foreground text-[10px] font-bold px-2 py-0.5 rounded-sm">
+            <FileText size={10} /> Schedule X
           </span>
-        ) : medicine.drugSchedule === "H1" ? (
-          <span className="inline-flex items-center gap-1 bg-rose-600 text-white text-[10px] font-black uppercase px-2 py-0.5 rounded-full shadow-xs">
-            <FileText size={10} /> Rx H1
-          </span>
-        ) : medicine.prescriptionRequired || medicine.drugSchedule === "H" ? (
-          <span className="inline-flex items-center gap-1 bg-accent text-white text-[10px] font-black uppercase px-2 py-0.5 rounded-full shadow-xs">
-            <FileText size={10} /> Rx
+        ) : isRx ? (
+          <span className="inline-flex items-center gap-1 bg-destructive text-destructive-foreground text-[10px] font-bold px-2 py-0.5 rounded-sm shadow-xs">
+            <FileText size={10} /> Prescription required
           </span>
         ) : (
-          <span />
+          <span className="inline-flex items-center text-[10px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded-sm border border-border">
+            OTC
+          </span>
         )}
 
         {medicine.discountPercentage > 0 && (
-          <span className="bg-primary text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-xs ml-auto">
-            {medicine.discountPercentage}% OFF
+          <span className="text-[10px] font-mono font-bold text-primary bg-primary/10 border border-primary/30 px-2 py-0.5 rounded-sm ml-auto">
+            {medicine.discountPercentage}% off
           </span>
         )}
       </div>
@@ -52,99 +52,109 @@ export default function MedicineCard({ medicine, priority = false }: { medicine:
       {/* Product Image */}
       <Link 
         href={`/medicines/${medicine.slug}`} 
-        className="block relative pt-[90%] bg-slate-50 overflow-hidden p-3 border-b border-slate-100 group-hover:bg-green-50/20 transition-colors"
+        className="block relative pt-[80%] bg-muted/20 overflow-hidden p-3 border-b border-border mt-2"
+        aria-label={`View details for ${medicine.name}`}
       >
         <div className="absolute inset-0 flex items-center justify-center p-3">
           {medicine.imageUrl ? (
             <Image 
               src={medicine.imageUrl} 
-              alt={medicine.name}
+              alt={`${medicine.name} ${medicine.packSize || ""}`}
               fill
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
-              className="object-contain group-hover:scale-108 transition-transform duration-300"
+              className="object-contain"
               unoptimized={medicine.imageUrl.startsWith("http")}
               priority={priority}
               loading={priority ? undefined : "lazy"}
             />
           ) : (
-            <div className="w-full h-full bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 text-xs font-semibold">
-              No Image
+            <div className="w-full h-full bg-muted/60 rounded flex items-center justify-center text-muted-foreground text-xs font-mono font-semibold">
+              Rx Formulation
             </div>
           )}
         </div>
       </Link>
 
       {/* Content */}
-      <div className="p-4 flex flex-col flex-1">
-        <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider mb-1 truncate">
+      <div className="p-3.5 sm:p-4 flex flex-col flex-1">
+        <span className="text-[11px] text-muted-foreground font-semibold truncate mb-0.5">
           {medicine.brand}
         </span>
 
-        <Link href={`/medicines/${medicine.slug}`} className="group-hover:text-primary transition-colors">
-          <h3 className="font-bold text-sm text-slate-900 line-clamp-2 leading-snug mb-1 min-h-[2.5rem]">
+        <Link href={`/medicines/${medicine.slug}`} className="hover:text-primary transition-colors">
+          <h3 className="font-heading font-bold text-sm text-foreground line-clamp-2 leading-snug mb-1 min-h-[2.5rem]">
             {medicine.name}
           </h3>
         </Link>
 
-        <p className="text-xs text-slate-500 mb-2 truncate" title={medicine.composition}>
+        <p className="text-xs text-muted-foreground mb-2 truncate" title={medicine.composition}>
           {medicine.composition}
         </p>
+
+        {/* Strength & Pack Size Metadata Badge */}
+        <div className="flex items-center gap-1.5 mb-2.5">
+          {medicine.packSize && (
+            <span className="text-[11px] font-mono font-bold text-foreground bg-muted/80 border border-border px-2 py-0.5 rounded-sm">
+              {medicine.packSize}
+            </span>
+          )}
+          {medicine.category && (
+            <span className="text-[10px] text-muted-foreground capitalize truncate">
+              {medicine.category.replace("-", " ")}
+            </span>
+          )}
+        </div>
 
         {/* Rating */}
         <div className="mb-3">
           <RatingStars rating={medicine.rating} reviewsCount={medicine.reviewsCount} size={13} />
         </div>
 
-        {/* Price & Savings */}
-        <div className="mt-auto pt-2 border-t border-slate-100">
-          <div className="flex items-baseline justify-between mb-1">
+        {/* Price & Primary Action */}
+        <div className="mt-auto pt-3 border-t border-border">
+          <div className="flex items-baseline justify-between mb-2">
             <div className="flex items-baseline gap-1.5">
-              <span className="text-lg font-black text-slate-900">₹{medicine.price}</span>
+              <span className="font-heading font-bold text-lg text-foreground font-mono">₹{medicine.price}</span>
               {medicine.mrp > medicine.price && (
-                <span className="text-xs text-slate-400 line-through">₹{medicine.mrp}</span>
+                <span className="text-xs text-muted-foreground line-through font-mono">₹{medicine.mrp}</span>
               )}
             </div>
-            {medicine.packSize && (
-              <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
-                {medicine.packSize}
-              </span>
-            )}
           </div>
 
           {/* Add to Cart Button */}
           {medicine.drugSchedule === "X" ? (
             <button 
               disabled
-              className="w-full mt-2.5 py-2.5 rounded-full font-bold text-xs bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
+              className="w-full h-11 min-h-[44px] rounded-sm font-heading font-bold text-xs bg-muted text-muted-foreground border border-border cursor-not-allowed flex items-center justify-center"
               title="Schedule X drugs cannot be sold online as per Indian law"
             >
-              In-Store Retail Only
+              In-store retail only
             </button>
           ) : isOtcOnlyMode() && !isOtcMedicine(medicine) ? (
             <button
               disabled
-              className="w-full mt-2.5 py-2.5 rounded-full font-bold text-xs bg-slate-100 text-slate-500 border border-slate-200 cursor-not-allowed"
+              className="w-full h-11 min-h-[44px] rounded-sm font-heading font-bold text-xs bg-muted text-muted-foreground border border-border cursor-not-allowed flex items-center justify-center"
             >
               {OTC_ONLY_STOREFRONT_LABEL}
             </button>
           ) : (
             <button 
               onClick={handleAddToCart}
-              className={`w-full mt-2.5 flex items-center justify-center gap-2 py-2.5 rounded-full font-bold text-xs transition-all shadow-xs active:scale-95 ${
+              className={`w-full h-11 min-h-[44px] flex items-center justify-center gap-2 rounded-sm font-heading font-bold text-xs transition-colors border shadow-xs active:scale-[0.98] ${
                 isAdded 
-                  ? "bg-emerald-600 text-white shadow-emerald-200" 
-                  : "bg-primary hover:bg-primary-dark text-white hover:shadow-primary/20 hover:shadow-md"
+                  ? "bg-primary text-primary-foreground border-primary" 
+                  : "bg-accent hover:bg-accent-hover text-accent-foreground border-foreground/20"
               }`}
             >
               {isAdded ? (
                 <>
                   <Check size={15} className="stroke-[3]" />
-                  Added to Cart
+                  <span>Added to cart</span>
                 </>
               ) : (
                 <>
                   <ShoppingCart size={15} />
-                  Add to Cart
+                  <span>Add to cart</span>
                 </>
               )}
             </button>

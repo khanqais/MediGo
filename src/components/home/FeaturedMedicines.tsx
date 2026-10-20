@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import MedicineCard from "../medicine/MedicineCard";
-import { ArrowRight, Flame } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { Medicine } from "@/types/medicine";
 import { getStock } from "@/lib/inventory";
@@ -49,28 +49,28 @@ export default async function FeaturedMedicines() {
   const totalCount = count || bestSellers.length;
 
   return (
-    <section className="py-12 bg-white">
-      <div className="container mx-auto px-4">
+    <section className="py-12 bg-card border-b border-border">
+      <div className="container mx-auto px-4 max-w-6xl">
         <div className="flex items-end justify-between mb-8">
           <div>
-            <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-accent">
-              <Flame size={15} className="fill-current text-accent" />
-              <span>POPULAR GENERICS</span>
-            </div>
-            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">Best Sellers</h2>
-            <p className="text-sm text-slate-500 mt-0.5">Most prescribed generic formulations ordered by 50,000+ patients</p>
+            <h2 className="text-2xl sm:text-3xl font-heading font-extrabold text-foreground">
+              Frequently ordered generic medicines
+            </h2>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+              Formulations verified by registered clinical pharmacists for bio-equivalent active salts
+            </p>
           </div>
           <Link 
             href="/medicines" 
-            className="hidden sm:inline-flex items-center gap-1 text-sm font-bold text-primary hover:text-primary-dark transition-colors group"
+            className="hidden sm:inline-flex items-center gap-1.5 text-xs sm:text-sm font-heading font-bold text-primary hover:underline min-h-[44px]"
           >
-            <span>View All ({totalCount})</span> 
-            <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+            <span>View all ({totalCount})</span> 
+            <ArrowRight size={15} />
           </Link>
         </div>
         
-        {/* 5-Column Product Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-5">
+        {/* Product Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
           {bestSellers.map(medicine => (
             <MedicineCard key={medicine.id} medicine={medicine} />
           ))}
@@ -79,9 +79,10 @@ export default async function FeaturedMedicines() {
         <div className="mt-8 text-center sm:hidden">
           <Link 
             href="/medicines" 
-            className="inline-flex items-center justify-center gap-2 w-full py-3 text-primary font-bold border-2 border-primary rounded-full hover:bg-primary hover:text-white transition"
+            className="inline-flex items-center justify-center gap-2 w-full h-11 px-4 text-foreground font-heading font-bold text-xs border border-border bg-muted rounded-sm hover:bg-card min-h-[44px]"
           >
-            View All {totalCount} Medicines <ArrowRight size={16} />
+            <span>View all {totalCount} medicines</span>
+            <ArrowRight size={15} />
           </Link>
         </div>
       </div>

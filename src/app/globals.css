@@ -4,65 +4,76 @@
 
 @layer base {
   :root {
-    --background: 210 40% 98%; /* Slate 50 */
-    --foreground: 222 47% 11%; /* Slate 900 */
+    /* Pharmacy Packaging Palette */
+    /* --background: #F6F8F7 (cool pharmacy white/foil) */
+    --background: 150 8% 97%;
+    /* --foreground / ink: #0E1B2C */
+    --foreground: 214 52% 11%;
 
+    /* Crisp cards with tactile foil borders */
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 214 52% 11%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover-foreground: 214 52% 11%;
 
-    --primary: 142 76% 36%; /* Green 600 */
+    /* --primary: #0B5D4B (deep bottle green) */
+    --primary: 167 79% 20%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* --secondary / --muted: #E4E9E8 (foil grey) */
+    --secondary: 168 10% 90%;
+    --secondary-foreground: 214 52% 11%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215 16% 47%; /* Slate 500 */
+    --muted: 168 10% 90%;
+    /* --muted-foreground / --muted-text: #4A5A57 */
+    --muted-foreground: 169 10% 32%;
 
-    --accent: 25 95% 53%; /* Orange 500 */
-    --accent-foreground: 0 0% 100%;
+    /* --accent: #FFD23F (label yellow for primary action only) */
+    --accent: 46 100% 62%;
+    --accent-foreground: 214 52% 11%;
 
-    --destructive: 0 84% 60%; /* Red 500 */
+    /* --destructive: #C62828 (prescription-required and safety warnings only) */
+    --destructive: 0 66% 47%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 214 32% 91%; /* Slate 200 */
-    --input: 214 32% 91%;
-    --ring: 142 76% 36%;
+    /* Foil border & inputs */
+    --border: 168 10% 84%;
+    --input: 168 10% 86%;
+    --ring: 167 79% 20%;
 
-    --radius: 0.75rem;
+    /* Disciplined, compact pharmacy radius (8px) */
+    --radius: 0.5rem;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    --background: 214 52% 7%;
+    --foreground: 150 8% 96%;
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --card: 214 45% 10%;
+    --card-foreground: 150 8% 96%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 214 45% 10%;
+    --popover-foreground: 150 8% 96%;
 
-    --primary: 142 76% 36%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 167 65% 32%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 214 30% 16%;
+    --secondary-foreground: 150 8% 96%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 214 30% 16%;
+    --muted-foreground: 169 12% 66%;
 
-    --accent: 25 95% 53%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 46 100% 62%;
+    --accent-foreground: 214 52% 11%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 66% 54%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 142 76% 36%;
+    --border: 214 30% 20%;
+    --input: 214 30% 20%;
+    --ring: 167 65% 45%;
   }
 }
 
@@ -72,10 +83,44 @@
   }
   body {
     @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading tracking-tight text-foreground;
+  }
+
+  p {
+    max-width: 80ch;
+  }
+
+  /* Accessible visible keyboard focus */
+  :focus-visible {
+    @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-background;
   }
 }
 
-/* Custom Utilities */
-.glass {
-  @apply bg-white/70 backdrop-blur-md border-b border-white/20;
+/* Packaging & Clinical Design Utilities */
+@layer components {
+  /* Printed pharmacy label styled container */
+  .pharmacy-label {
+    @apply bg-white border-2 border-foreground/90 shadow-label relative overflow-hidden;
+  }
+
+  /* Blister strip card */
+  .blister-card {
+    @apply bg-white border border-border shadow-blister transition-colors;
+  }
+
+  /* Amber glass accent pill / badge */
+  .amber-glass {
+    background-color: rgba(180, 83, 9, 0.08);
+    border: 1px solid rgba(180, 83, 9, 0.25);
+    color: #78350F;
+  }
+
+  /* Foil surface */
+  .foil-surface {
+    @apply bg-muted/60 border border-border/80;
+  }
 }

@@ -102,30 +102,30 @@ export default function Navbar() {
   };
 
   return (
-    <nav className="sticky top-0 z-50 w-full bg-white border-b border-slate-200 shadow-xs">
+    <nav className="sticky top-0 z-50 w-full bg-card border-b border-border shadow-xs">
       {/* Main Navbar Bar */}
       <div className="container mx-auto px-4 h-16 sm:h-20 flex items-center justify-between gap-3 md:gap-6">
         {/* Left: Mobile Hamburger & Logo */}
         <div className="flex items-center gap-2">
           <button 
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-2 text-slate-700 hover:bg-slate-100 rounded-lg transition"
+            className="md:hidden p-2 text-foreground hover:bg-muted rounded-md transition min-h-[44px] min-w-[44px] flex items-center justify-center"
             aria-label="Toggle navigation menu"
           >
             {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
           </button>
 
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 group">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all shadow-xs">
-              <Pill className="h-6 w-6 stroke-[2.5]" />
+          <Link href="/" className="flex items-center gap-2.5 group">
+            <div className="w-10 h-10 rounded-md bg-primary flex items-center justify-center text-primary-foreground shadow-xs">
+              <Pill className="h-6 w-6 stroke-[2.25]" />
             </div>
             <div className="flex flex-col">
-              <span className="font-extrabold text-xl sm:text-2xl text-slate-900 tracking-tight flex items-center">
-                Medi<span className="text-primary">Quick</span>
+              <span className="font-heading font-extrabold text-2xl text-foreground tracking-tight flex items-center leading-none">
+                Medi<span className="text-primary">Go</span>
               </span>
-              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider hidden sm:inline -mt-1">
-                GENERIC PHARMACY
+              <span className="text-[11px] font-medium text-muted-foreground mt-0.5 hidden sm:inline">
+                Verified Indian Generic Pharmacy
               </span>
             </div>
           </Link>
@@ -135,19 +135,19 @@ export default function Navbar() {
         <div className="relative hidden lg:block">
           <button
             onClick={() => setLocationMenuOpen(!locationMenuOpen)}
-            className="flex items-center gap-2 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 px-3 py-2 rounded-xl transition"
+            className="flex items-center gap-2 text-xs font-semibold text-foreground bg-muted/60 hover:bg-muted border border-border px-3.5 py-2 rounded-md transition min-h-[44px]"
           >
             <MapPin size={16} className="text-primary shrink-0" />
             <div className="text-left">
-              <p className="text-[10px] text-slate-400 leading-none">Deliver to</p>
-              <p className="font-bold text-slate-800 leading-tight">{selectedCity}</p>
+              <p className="text-[10px] text-muted-foreground leading-none">Deliver to</p>
+              <p className="font-bold text-foreground leading-tight mt-0.5">{selectedCity}</p>
             </div>
-            <ChevronDown size={14} className="text-slate-400" />
+            <ChevronDown size={14} className="text-muted-foreground" />
           </button>
 
           {locationMenuOpen && (
-            <div className="absolute left-0 mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-xl py-2 z-50 animate-in fade-in slide-in-from-top-2">
-              <p className="px-3 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Select Pincode</p>
+            <div className="absolute left-0 mt-2 w-48 bg-card border border-border rounded-md shadow-dropdown py-2 z-50">
+              <p className="px-3 py-1 text-[11px] font-bold text-muted-foreground">Select pin code</p>
               {cities.map((city) => (
                 <button
                   key={city}
@@ -155,8 +155,8 @@ export default function Navbar() {
                     setSelectedCity(city);
                     setLocationMenuOpen(false);
                   }}
-                  className={`w-full text-left px-3 py-1.5 text-xs font-medium hover:bg-green-50 hover:text-primary transition ${
-                    selectedCity === city ? "text-primary font-bold bg-green-50/50" : "text-slate-700"
+                  className={`w-full text-left px-3 py-2 text-xs font-medium hover:bg-muted transition ${
+                    selectedCity === city ? "text-primary font-bold bg-muted/80" : "text-foreground"
                   }`}
                 >
                   {city}
@@ -166,20 +166,21 @@ export default function Navbar() {
           )}
         </div>
 
-        {/* Center: Search Bar with category dropdown prefix */}
+        {/* Center: Search Bar with printed label styling */}
         <div className="flex-1 max-w-xl hidden md:block relative z-50">
           <form onSubmit={handleSearchSubmit} className="flex items-center relative z-50">
-            <div className="relative w-full flex items-center shadow-xs rounded-full border border-slate-300 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 transition-all bg-white overflow-hidden">
+            <div className="relative w-full flex items-center rounded-md border-2 border-foreground/80 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 transition-all bg-card shadow-xs overflow-hidden">
               <select
                 value={categoryPrefix}
                 onChange={(e) => setCategoryPrefix(e.target.value)}
-                className="h-11 pl-3.5 pr-2 text-xs font-semibold text-slate-600 bg-slate-50 border-r border-slate-200 outline-none cursor-pointer hover:bg-slate-100"
+                className="h-11 pl-3 pr-2 text-xs font-semibold text-foreground bg-muted/50 border-r border-border outline-none cursor-pointer hover:bg-muted"
+                aria-label="Filter by department"
               >
-                <option value="All">All</option>
-                <option value="Medicines">Medicines</option>
+                <option value="All">All medicines</option>
+                <option value="Medicines">Generics</option>
                 <option value="Antibiotics">Antibiotics</option>
                 <option value="Syrups">Syrups</option>
-                <option value="Skin">Skin Care</option>
+                <option value="Skin">Dermatology</option>
               </select>
               
               <input
@@ -192,14 +193,14 @@ export default function Navbar() {
                 onFocus={() => setShowSuggestions(true)}
                 onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                 onKeyDown={handleKeyDown}
-                placeholder="Search medicines, brands, salt names..."
-                className="flex-1 h-11 px-4 text-sm text-slate-800 placeholder-slate-400 outline-none bg-transparent"
+                placeholder="Search medicine name, active salt, strength (e.g. Paracetamol 500mg)..."
+                className="flex-1 h-11 px-3.5 text-sm text-foreground placeholder:text-muted-foreground outline-none bg-transparent"
               />
 
               <button
                 type="submit"
-                className="h-9 px-4 mr-1 bg-primary text-white hover:bg-primary-dark font-semibold rounded-full flex items-center justify-center transition active:scale-95 shadow-xs"
-                aria-label="Search"
+                className="h-9 px-4 mr-1 bg-primary text-primary-foreground hover:bg-primary-dark font-semibold rounded-sm flex items-center justify-center transition active:scale-95 shadow-xs"
+                aria-label="Search medicines"
               >
                 <Search size={16} />
               </button>
@@ -208,42 +209,57 @@ export default function Navbar() {
 
           {/* Autocomplete Dropdown */}
           {showSuggestions && searchQuery.trim() && (
-            <div className="absolute top-full mt-2 w-full bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden z-[60]">
+            <div className="absolute top-full mt-2 w-full bg-card rounded-md shadow-dropdown border border-border overflow-hidden z-[60]">
               {isSearching ? (
-                <div className="p-4 text-sm text-slate-500 text-center">Searching...</div>
+                <div className="p-4 text-xs text-muted-foreground text-center">Searching pharmacy directory...</div>
               ) : suggestions.length > 0 ? (
-                <ul className="max-h-80 overflow-y-auto">
+                <ul className="max-h-80 overflow-y-auto divide-y divide-border">
                   {suggestions.map((med, index) => (
                     <li 
                       key={med.id} 
-                      className={`border-b border-slate-100 last:border-0 ${index === highlightedIndex ? 'bg-slate-100' : 'hover:bg-slate-50'}`}
+                      className={`${index === highlightedIndex ? 'bg-muted' : 'hover:bg-muted/50'}`}
                     >
                       <Link 
                         href={`/medicines/${med.slug}`}
                         className="block p-3"
                         onClick={() => setShowSuggestions(false)}
                       >
-                        <div className="font-bold text-sm text-slate-900">{med.name}</div>
-                        <div className="text-xs text-slate-500 mt-0.5 truncate">{med.composition}</div>
-                        <div className="text-xs font-bold text-primary mt-1">₹{med.price}</div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-heading font-bold text-sm text-foreground">{med.name}</span>
+                          <span className="font-mono text-sm font-bold text-primary">₹{med.price}</span>
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-0.5 truncate">{med.composition}</div>
+                        <div className="flex items-center gap-2 mt-1">
+                          {med.packSize && (
+                            <span className="text-[10px] font-medium bg-muted px-1.5 py-0.5 rounded text-foreground">
+                              {med.packSize}
+                            </span>
+                          )}
+                          {med.prescriptionRequired && (
+                            <span className="text-[10px] font-bold text-destructive flex items-center gap-0.5">
+                              • Prescription required
+                            </span>
+                          )}
+                        </div>
                       </Link>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <div className="p-4 text-sm text-slate-500 text-center">No medicines found.</div>
+                <div className="p-4 text-xs text-muted-foreground text-center">No medicines found matching &ldquo;{searchQuery}&rdquo;.</div>
               )}
             </div>
           )}
         </div>
 
         {/* Right: Actions */}
-        <div className="flex items-center gap-2 sm:gap-4">
+        <div className="flex items-center gap-2 sm:gap-3">
           {/* Wishlist */}
           <Link
             href="/medicines"
-            className="hidden lg:flex items-center gap-1 text-slate-700 hover:text-primary p-2 rounded-xl hover:bg-slate-50 transition"
-            title="Wishlist"
+            className="hidden lg:flex items-center justify-center text-foreground hover:text-primary p-2 rounded-md hover:bg-muted transition min-h-[44px] min-w-[44px]"
+            title="Browse catalogue"
+            aria-label="Catalogue"
           >
             <Heart size={20} className="stroke-[1.75]" />
           </Link>
@@ -252,10 +268,10 @@ export default function Navbar() {
           {mounted && isAuthenticated && (profile?.role === "admin" || profile?.role === "pharmacist") && (
             <Link
               href="/admin"
-              className="hidden md:flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-full transition shadow-xs"
+              className="hidden md:flex items-center gap-1.5 text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/30 px-3 py-2 rounded-md transition min-h-[44px]"
             >
-              <ShieldCheck size={15} />
-              <span>{profile.role === "admin" ? "Admin Portal" : "Pharmacist Portal"}</span>
+              <ShieldCheck size={16} />
+              <span>{profile.role === "admin" ? "Admin portal" : "Pharmacist portal"}</span>
             </Link>
           )}
 
@@ -263,31 +279,31 @@ export default function Navbar() {
           {mounted && isAuthenticated ? (
             <Link
               href="/profile"
-              className="hidden sm:flex items-center gap-2 text-sm font-semibold text-slate-700 hover:text-primary px-3 py-2 rounded-xl hover:bg-slate-50 transition"
+              className="hidden sm:flex items-center gap-2 text-sm font-semibold text-foreground hover:text-primary px-3 py-2 rounded-md hover:bg-muted transition min-h-[44px]"
             >
-              <User size={20} className="text-primary stroke-[2]" />
+              <User size={18} className="text-primary stroke-[2]" />
               <span className="max-w-[120px] truncate">{profile?.full_name ? profile.full_name.split(" ")[0] : "Account"}</span>
             </Link>
           ) : (
             <Link
               href="/login"
-              className="hidden sm:flex items-center gap-2 text-sm font-semibold text-slate-700 hover:text-primary px-3 py-2 rounded-xl hover:bg-slate-50 transition"
+              className="hidden sm:flex items-center gap-2 text-sm font-semibold text-foreground hover:text-primary px-3 py-2 rounded-md hover:bg-muted transition min-h-[44px]"
             >
-              <User size={20} className="text-slate-600 stroke-[1.75]" />
-              <span>Sign In</span>
+              <User size={18} className="text-muted-foreground stroke-[1.75]" />
+              <span>Sign in</span>
             </Link>
           )}
 
-          {/* Cart Button with Orange Badge */}
+          {/* Cart Button with Label Yellow Accent Badge */}
           <button
             onClick={openDrawer}
-            className="relative flex items-center gap-2 bg-slate-50 hover:bg-green-50 border border-slate-200 hover:border-primary/40 text-slate-800 px-3.5 py-2 rounded-full transition shadow-xs group active:scale-95"
-            aria-label="Open Shopping Cart"
+            className="relative flex items-center gap-2 bg-card hover:bg-muted border border-border text-foreground px-3.5 py-2 rounded-md transition shadow-xs group min-h-[44px]"
+            aria-label={`Shopping cart with ${cartCount} items`}
           >
             <ShoppingBag size={20} className="text-primary stroke-[2.25]" />
             <span className="hidden sm:inline text-xs font-bold">Cart</span>
             {mounted && cartCount > 0 && (
-              <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-black text-white bg-accent rounded-full min-w-[20px] h-5 shadow-xs">
+              <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold text-foreground bg-accent border border-foreground/20 rounded-sm min-w-[20px] h-5">
                 {cartCount}
               </span>
             )}
@@ -296,16 +312,20 @@ export default function Navbar() {
       </div>
 
       {/* Mobile Search Input */}
-      <div className="p-3 border-t border-slate-100 md:hidden bg-slate-50/70">
+      <div className="p-3 border-t border-border md:hidden bg-muted/30">
         <form onSubmit={handleSearchSubmit} className="relative w-full flex items-center">
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search medicines, salts..."
-            className="w-full h-10 pl-4 pr-10 text-sm rounded-full border border-slate-300 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary bg-white shadow-xs"
+            placeholder="Search medicine name, salt, strength..."
+            className="w-full h-11 pl-4 pr-11 text-sm rounded-md border-2 border-foreground/70 focus:outline-none focus:border-primary bg-card text-foreground placeholder:text-muted-foreground shadow-xs"
           />
-          <button type="submit" className="absolute right-0 h-full px-3 text-slate-500 hover:text-primary">
+          <button 
+            type="submit" 
+            className="absolute right-0 h-full px-3 text-muted-foreground hover:text-primary min-w-[44px] flex items-center justify-center"
+            aria-label="Search medicines"
+          >
             <Search size={18} />
           </button>
         </form>
@@ -313,38 +333,38 @@ export default function Navbar() {
 
       {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden bg-white border-b border-slate-200 px-4 py-4 space-y-3">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-            <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+        <div className="md:hidden bg-card border-b border-border px-4 py-4 space-y-3">
+          <div className="flex items-center justify-between pb-3 border-b border-border">
+            <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
               <MapPin size={16} className="text-primary" />
               <span>Deliver to: <strong>{selectedCity}</strong></span>
             </div>
             {mounted && isAuthenticated ? (
               <Link href="/profile" onClick={() => setMobileMenuOpen(false)} className="text-xs font-bold text-primary">
-                My Account ({profile?.full_name ? profile.full_name.split(" ")[0] : "Profile"})
+                My account ({profile?.full_name ? profile.full_name.split(" ")[0] : "Profile"})
               </Link>
             ) : (
               <Link href="/login" onClick={() => setMobileMenuOpen(false)} className="text-xs font-bold text-primary">
-                Sign In / Register
+                Sign in / Register
               </Link>
             )}
           </div>
-          <div className="grid grid-cols-2 gap-2 text-sm font-medium text-slate-700">
-            <Link href="/medicines" onClick={() => setMobileMenuOpen(false)} className="p-2 bg-slate-50 rounded-lg hover:bg-green-50">
-              💊 All Medicines
+          <div className="grid grid-cols-2 gap-2 text-sm font-medium text-foreground">
+            <Link href="/medicines" onClick={() => setMobileMenuOpen(false)} className="p-3 bg-muted/60 rounded-md hover:bg-muted min-h-[44px] flex items-center">
+              All medicines
             </Link>
-            <Link href="/prescriptions" onClick={() => setMobileMenuOpen(false)} className="p-2 bg-slate-50 rounded-lg hover:bg-green-50">
-              📄 Upload Prescription
+            <Link href="/prescriptions" onClick={() => setMobileMenuOpen(false)} className="p-3 bg-muted/60 rounded-md hover:bg-muted min-h-[44px] flex items-center">
+              Upload prescription
             </Link>
-            <Link href="/offers" onClick={() => setMobileMenuOpen(false)} className="p-2 bg-slate-50 rounded-lg hover:bg-green-50">
-              🔥 Today&apos;s Deals
+            <Link href="/offers" onClick={() => setMobileMenuOpen(false)} className="p-3 bg-muted/60 rounded-md hover:bg-muted min-h-[44px] flex items-center">
+              Deals & discounts
             </Link>
-            <Link href="/orders" onClick={() => setMobileMenuOpen(false)} className="p-2 bg-slate-50 rounded-lg hover:bg-green-50">
-              📦 Track Orders
+            <Link href="/orders" onClick={() => setMobileMenuOpen(false)} className="p-3 bg-muted/60 rounded-md hover:bg-muted min-h-[44px] flex items-center">
+              Order history
             </Link>
             {mounted && isAuthenticated && (profile?.role === "admin" || profile?.role === "pharmacist") && (
-              <Link href="/admin" onClick={() => setMobileMenuOpen(false)} className="p-2 bg-emerald-50 text-emerald-800 font-semibold rounded-lg hover:bg-emerald-100 col-span-2">
-                🛡️ {profile.role === "admin" ? "Admin Portal" : "Pharmacist Portal"}
+              <Link href="/admin" onClick={() => setMobileMenuOpen(false)} className="p-3 bg-primary/10 text-primary font-bold rounded-md hover:bg-primary/20 col-span-2 min-h-[44px] flex items-center">
+                Staff portal ({profile.role === "admin" ? "Admin" : "Pharmacist"})
               </Link>
             )}
           </div>
